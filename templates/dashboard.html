@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>EWS Monitoring Media - TNI AD</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f5f7; margin: 0; padding: 2rem; }
+        h1 { color: #1a2b4c; }
+        .summary { margin-bottom: 1.5rem; color: #555; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+        th { background: #1a2b4c; color: white; }
+        .score-high { color: #c0392b; font-weight: bold; }
+        .score-mid { color: #d68910; font-weight: bold; }
+        a { color: #2471a3; text-decoration: none; }
+        .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+        .notified-yes { background: #d5f5e3; color: #1e8449; }
+        .notified-no { background: #fadbd8; color: #a93226; }
+    </style>
+</head>
+<body>
+    <h1>EWS Monitoring Media &mdash; TNI AD</h1>
+    <div class="summary">Total artikel di-scrape: {{ total_articles }} | Total alert: {{ alerts|length }}</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Waktu</th>
+                <th>Judul</th>
+                <th>Sumber</th>
+                <th>Skor</th>
+                <th>Kategori</th>
+                <th>Kata Terdeteksi</th>
+                <th>Status Kirim</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in alerts %}
+            <tr>
+                <td>{{ a.created_at.strftime('%d-%m-%Y %H:%M') }}</td>
+                <td><a href="{{ a.article.link }}" target="_blank">{{ a.article.title }}</a></td>
+                <td>{{ a.article.source }}</td>
+                <td class="{{ 'score-high' if a.severity_score >= 6 else 'score-mid' }}">{{ a.severity_score }}</td>
+                <td>{{ a.matched_categories }}</td>
+                <td>{{ a.matched_words }}</td>
+                <td>
+                    <span class="badge {{ 'notified-yes' if a.notified else 'notified-no' }}">
+                        {{ 'Terkirim' if a.notified else 'Gagal/Pending' }}
+                    </span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7">Belum ada alert.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
