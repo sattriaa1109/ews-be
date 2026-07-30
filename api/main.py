@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -16,7 +16,7 @@ app = FastAPI(title="EWS Monitoring Media - TNI AD")
 templates = Jinja2Templates(directory="templates")
 
 # Simpan waktu startup buat status "uptime sejak"
-APP_STARTED_AT = datetime.utcnow()
+APP_STARTED_AT = datetime.now(timezone.utc)
 
 
 @app.on_event("startup")

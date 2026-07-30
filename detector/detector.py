@@ -60,8 +60,4 @@ def evaluate_article(db, article) -> Alert | None:
 
     logger.info(f"Alert dibuat untuk artikel #{article.id} dengan skor {score}")
 
-    # Kirim notifikasi langsung setelah alert dibuat
-    from notifier.telegram_bot import send_alert_notification
-    send_alert_notification(article, alert)
-
     return alert

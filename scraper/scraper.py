@@ -56,7 +56,11 @@ def run_scrape_job():
                 db.refresh(article)
                 new_count += 1
 
-                evaluate_article(db, article)
+                try:
+                    evaluate_article(db, article)
+                except Exception:
+                    db.rollback()
+                    logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")
 
         logger.info(f"Scrape job selesai. {new_count} artikel baru diproses.")
     finally:
