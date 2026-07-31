@@ -23,6 +23,12 @@ APP_STARTED_AT = datetime.now(timezone.utc)
 def on_startup():
     init_db()
     start_scheduler()
+    # Jalankan scrape pertama segera, tidak perlu nunggu interval
+    from scraper.scraper import run_scrape_job
+    try:
+        run_scrape_job()
+    except Exception:
+        logging.exception("Scrape awal gagal, scheduler akan coba lagi nanti")
 
 
 @app.get("/api/status")

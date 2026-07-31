@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 
 import feedparser
@@ -24,12 +25,17 @@ def fetch_feed(feed_url: str) -> list[dict]:
 
     results = []
     for entry in parsed.entries:
+        # Prefer full content over summary for richer keyword detection
+        raw = entry.get("summary", "") or ""
+        if hasattr(entry, "content") and entry.content:
+            raw = entry.content[0].get("value", raw)
+        raw = re.sub(r"<[^>]+>", " ", raw)
         results.append({
             "title": entry.get("title", "").strip(),
             "link": entry.get("link", "").strip(),
             "source": parsed.feed.get("title", feed_url),
             "published_at": _parse_published(entry),
-            "raw_summary": entry.get("summary", ""),
+            "raw_summary": raw,
         })
     return results
 
@@ -39,11 +45,20 @@ def run_scrape_job():
     lalu jalankan detector untuk tiap artikel baru."""
     from detector.detector import evaluate_article  # import lokal, hindari circular import
 
+    if not RSS_FEEDS:
+        logger.warning("RSS_FEEDS kosong, tidak ada feed yang di-scrape")
+        return
+
     db = SessionLocal()
     new_count = 0
     try:
         for feed_url in RSS_FEEDS:
-            for item in fetch_feed(feed_url):
+            try:
+                items = fetch_feed(feed_url)
+            except Exception:
+                logger.exception(f"Feed gagal diakses: {feed_url}")
+                continue
+            for item in items:
                 if not item["link"]:
                     continue
                 exists = db.query(Article).filter(Article.link == item["link"]).first()
