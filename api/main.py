@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -14,6 +15,15 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="EWS Monitoring Media - TNI AD")
 templates = Jinja2Templates(directory="templates")
+
+# Izinkan frontend (React/Vue/dll) di port lain memanggil API ini
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Simpan waktu startup buat status "uptime sejak"
 APP_STARTED_AT = datetime.now(timezone.utc)
