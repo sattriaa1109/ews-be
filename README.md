@@ -2,6 +2,10 @@
 
 Sistem pemantau otomatis pemberitaan media online terkait TNI AD, dengan alert real-time ke Telegram.
 
+> **Dokumentasi:**
+> - Panduan lengkap (instalasi, konfigurasi, maintenance): [`USER_MANUAL.md`](USER_MANUAL.md)
+> - Panduan singkat operator (non-teknis): [`PANDUAN_OPERATOR.md`](PANDUAN_OPERATOR.md)
+
 ## Struktur Proyek
 
 ```

@@ -24,9 +24,12 @@ RSS_FEEDS = [
 
 # Kata kunci konteks: artikel harus mengandung minimal salah satu ini
 # supaya dianggap relevan (mengurangi false positive)
-CONTEXT_KEYWORDS = [  # Daftar kata yang menunjukkan artikel menyangkut TNI AD
+CONTEXT_KEYWORDS = [  # Daftar kata yang menunjukkan artikel menyangkut TNI AD / penegak hukum
     "TNI AD", "TNI Angkatan Darat", "Kodam", "Prajurit TNI", "Kopassus",
     "Kostrad", "Babinsa", "Danrem", "Panglima TNI",
+    "TNI", "Pangdam", "Kasad", "teritorial", "Yonif", "Pussenif",
+    "Tentara Nasional Indonesia", "Angkatan Darat", "Kemhan",
+    "polisi", "KPK", "penegak hukum", "aparat",
 ]
 
 # Kata kunci negatif/sensitif per kategori, tiap kategori punya bobot
@@ -54,4 +57,4 @@ NEGATIVE_KEYWORDS = {  # Kamus kategori berisi kata kunci & bobot penalti
 }
 
 # Skor minimum supaya artikel dikirim sebagai alert
-ALERT_THRESHOLD = 3  # Artikel baru jadi alert jika skor >= 3
+ALERT_THRESHOLD = 2  # Artikel baru jadi alert jika skor >= 2
