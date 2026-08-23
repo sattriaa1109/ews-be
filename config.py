@@ -4,8 +4,8 @@ from dotenv import load_dotenv  # Import load_dotenv untuk memuat isi file .env 
 
 load_dotenv()  # Jalankan load_dotenv agar semua variabel di file .env tersedia untuk program
 
-# URL koneksi database; kalau DATABASE_URL tidak di-set di .env, pakai default SQLite
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ews_local.db")
+# URL koneksi database; kalau DATABASE_URL tidak di-set di .env, pakai default PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ews_user:ews_pass@localhost:5432/ews_db")
 
 # Token bot Telegram untuk mengirim notifikasi; kosong jika belum di-set
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -21,6 +21,19 @@ RSS_FEEDS = [
     for url in os.getenv("RSS_FEEDS", "").split(",")  # Ambil nilai RSS_FEEDS dari .env, pecah per koma
     if url.strip()  # Abaikan item yang kosong setelah di-trim
 ]
+
+# Tambahan RSS feed regional (Sumatra & wilayah Indonesia lainnya)
+REGIONAL_RSS_FEEDS = [
+    "https://sumut.antaranews.com/rss/terkini.xml",
+    "https://sumbar.antaranews.com/rss/terkini.xml",
+    "https://riau.antaranews.com/rss/terkini.xml",
+    "https://lampung.antaranews.com/rss/terkini.xml",
+    "https://sumsel.antaranews.com/rss/terkini.xml",
+]
+
+for feed in REGIONAL_RSS_FEEDS:
+    if feed not in RSS_FEEDS:
+        RSS_FEEDS.append(feed)
 
 # Kata kunci konteks: artikel harus mengandung minimal salah satu ini
 # supaya dianggap relevan (mengurangi false positive)

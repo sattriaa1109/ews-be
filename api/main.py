@@ -9,8 +9,11 @@ from fastapi.templating import Jinja2Templates  # Render template HTML
 from sqlalchemy.orm import Session  # Tipe sesi database untuk dependency
 
 from database import get_db, init_db  # get_db: dependency sesi DB; init_db: buat tabel
-from models.tables import Alert, Article  # Model tabel
+from models.tables import Alert, Article, User  # Model tabel
 from scheduler import start_scheduler  # Fungsi untuk menyalakan scheduler
+from pydantic import BaseModel
+import hashlib
+import secrets
 
 logging.basicConfig(level=logging.INFO)  # Set level log ke INFO agar log terlihat di konsol
 
@@ -34,12 +37,15 @@ APP_STARTED_AT = datetime.now(timezone.utc)  # Catat waktu aplikasi mulai (dalam
 def on_startup():
     init_db()  # Buat tabel-tabel di database kalau belum ada
     start_scheduler()  # Nyalakan scheduler untuk scraping berkala
-    # Jalankan scrape pertama segera, tidak perlu nunggu interval
-    from scraper.scraper import run_scrape_job  # Import lokal (dilakukan di sini untuk menghindari import berantai)
-    try:
-        run_scrape_job()  # Langsung jalankan satu kali scraping saat aplikasi start
-    except Exception:  # Jika scrape awal gagal
-        logging.exception("Scrape awal gagal, scheduler akan coba lagi nanti")  # Log error, scheduler tetap jadi cadangan
+    # Jalankan scrape pertama di background agar startup server tidak terblokir
+    import threading
+    def initial_scrape():
+        from scraper.scraper import run_scrape_job
+        try:
+            run_scrape_job()
+        except Exception:
+            logging.exception("Scrape awal gagal, scheduler akan coba lagi nanti")
+    threading.Thread(target=initial_scrape, daemon=True).start()
 
 
 @app.get("/api/status")  # Endpoint GET: cek status aplikasi
@@ -101,3 +107,258 @@ def dashboard(request: Request, db: Session = Depends(get_db)):  # Request dibut
             "total_articles": total_articles,  # Total artikel yang diteruskan ke template
         },
     )
+
+
+# --- Authentication & User Management (CRUD Admin, Staff, dll) ---
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UserCreate(BaseModel):
+    username: str
+    email: str | None = None
+    password: str
+    role: str = "staff"
+    is_active: int = 1
+
+class UserUpdate(BaseModel):
+    username: str | None = None
+    email: str | None = None
+    password: str | None = None
+    role: str | None = None
+    is_active: int | None = None
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${pwd_hash}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        salt, pwd_hash = stored_hash.split("$")
+        return hashlib.sha256((salt + password).encode()).hexdigest() == pwd_hash
+    except Exception:
+        return False
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == payload.username).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Username atau password salah")
+    if not user.is_active:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Akun dinonaktifkan")
+    return {
+        "success": True,
+        "message": "Login berhasil",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
+    }
+
+
+@app.post("/api/auth/register")
+def register(payload: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == payload.username).first()
+    if existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Username sudah digunakan")
+    
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        is_active=payload.is_active
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {
+        "success": True,
+        "message": "Registrasi berhasil",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
+    }
+
+
+@app.get("/api/users")
+def list_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "role": u.role,
+            "is_active": bool(u.is_active),
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
+@app.post("/api/users")
+def create_user(payload: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == payload.username).first()
+    if existing:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Username sudah digunakan")
+    
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        is_active=payload.is_active
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"success": True, "message": "User berhasil dibuat", "id": user.id}
+
+
+@app.get("/api/users/{user_id}")
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "is_active": bool(user.is_active),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+@app.put("/api/users/{user_id}")
+def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    
+    if payload.username is not None:
+        user.username = payload.username
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.password is not None and payload.password.strip():
+        user.hashed_password = hash_password(payload.password)
+    if payload.role is not None:
+        user.role = payload.role
+    if payload.is_active is not None:
+        user.is_active = payload.is_active
+        
+    db.commit()
+    return {"success": True, "message": "User berhasil diperbarui"}
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": "User berhasil dihapus"}
+
+
+# --- Regional News & Sources API (Berita Berdasarkan Wilayah seperti Sumatra, dll) ---
+
+@app.get("/api/articles")
+def list_articles(
+    region: str | None = None,
+    source: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Article)
+    if region:
+        query = query.filter(Article.region.ilike(f"%{region}%"))
+    if source:
+        query = query.filter(Article.source.ilike(f"%{source}%"))
+    if search:
+        query = query.filter(Article.title.ilike(f"%{search}%") | Article.raw_summary.ilike(f"%{search}%"))
+        
+    total = query.count()
+    articles = query.order_by(Article.scraped_at.desc()).offset(offset).limit(limit).all()
+    
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "articles": [
+            {
+                "id": a.id,
+                "title": a.title,
+                "link": a.link,
+                "source": a.source,
+                "region": a.region,
+                "published_at": a.published_at.isoformat() if a.published_at else None,
+                "scraped_at": a.scraped_at.isoformat() if a.scraped_at else None,
+                "raw_summary": a.raw_summary,
+            }
+            for a in articles
+        ]
+    }
+
+
+@app.get("/api/regions")
+def get_regions(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    results = db.query(Article.region, func.count(Article.id)).group_by(Article.region).all()
+    return [{"region": r[0] or "Nasional", "count": r[1]} for r in results]
+
+
+@app.get("/api/sources")
+def get_sources(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    results = db.query(Article.source, func.count(Article.id)).group_by(Article.source).all()
+    return [{"source": r[0] or "Unknown", "count": r[1]} for r in results]
+
+
+# --- Scraper Control API (Start, Stop, Status, Run Now) ---
+
+@app.get("/api/scraper/status")
+def scraper_status():
+    from scheduler import get_scheduler_status
+    return get_scheduler_status()
+
+
+@app.post("/api/scraper/start")
+def start_scraper_job():
+    from scheduler import start_scheduler
+    start_scheduler()
+    return {"success": True, "message": "Scraper berhasil dijalankan (start)"}
+
+
+@app.post("/api/scraper/stop")
+def stop_scraper_job():
+    from scheduler import stop_scheduler
+    stop_scheduler()
+    return {"success": True, "message": "Scraper berhasil dihentikan (stop)"}
+
+
+@app.post("/api/scraper/run-now")
+def run_scraper_now():
+    from scheduler import trigger_manual_scrape
+    trigger_manual_scrape()
+    return {"success": True, "message": "Scraping manual segera dijalankan di background"}

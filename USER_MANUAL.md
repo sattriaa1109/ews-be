@@ -18,8 +18,8 @@ lalu menampilkannya di dashboard web dan mengirim peringatan ke Telegram secara 
 5. Cek status:          http://localhost:8000/api/status
 ```
 
-> Jika hanya ingin lihat dashboard di komputer sendiri tanpa Docker & Telegram,
-> isi `.env` dengan `DATABASE_URL=sqlite:///./ews_local.db`, kosongkan token Telegram,
+> Jika ingin menjalankan tanpa Telegram,
+> kosongkan token Telegram di `.env`,
 > lalu `pip install -r requirements.txt` dan `uvicorn api.main:app --reload`.
 
 ---
@@ -86,7 +86,7 @@ docker compose down          # hentikan semua container
    ```bash
    createdb ews_db
    ```
-3. Siapkan `.env` (untuk SQLite, ganti `DATABASE_URL` menjadi `sqlite:///./ews_local.db`).
+3. Siapkan `.env` (`DATABASE_URL` otomatis menggunakan PostgreSQL secara default).
 4. Install dependency:
    ```bash
    pip install -r requirements.txt

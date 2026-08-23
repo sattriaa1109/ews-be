@@ -19,6 +19,28 @@ def _parse_published(entry) -> datetime | None:
     return None  # Tidak ada info waktu → kembalikan None
 
 
+def detect_region(feed_url: str, source: str, title: str, summary: str) -> str:
+    """Deteksi wilayah/regional berdasarkan feed URL, sumber, judul, dan ringkasan berita."""
+    text = f"{feed_url} {source} {title} {summary}".lower()
+    
+    if any(k in text for k in ["sumut", "sumbar", "riau", "lampung", "sumsel", "sumatera", "sumatra", "medan", "padang", "pekanbaru", "palembang", "bengkulu", "jambi", "aceh", "babel", "kepulauan riau", "batam", "tanjung pinang"]):
+        return "Sumatra"
+    elif any(k in text for k in ["jawa", "jakarta", "bandung", "surabaya", "semarang", "yogyakarta", "banten", "jabar", "jateng", "jatim"]):
+        return "Jawa"
+    elif any(k in text for k in ["kalimantan", "kaltim", "kalsel", "kalbar", "kalteng", "kalut", "samarinda", "banjarmasin", "pontianak"]):
+        return "Kalimantan"
+    elif any(k in text for k in ["sulawesi", "makassar", "manado", "palu", "kendari", "gorontalo", "sulsel", "sulteng"]):
+        return "Sulawesi"
+    elif any(k in text for k in ["papua", "jayapura", "merauke", "sorong", "timika", "irian"]):
+        return "Papua"
+    elif any(k in text for k in ["bali", "nusa tenggara", "ntb", "ntt", "kupang", "denpasar"]):
+        return "Bali & Nusa Tenggara"
+    elif any(k in text for k in ["maluku", "ambon", "ternate"]):
+        return "Maluku"
+    
+    return "Nasional"
+
+
 def fetch_feed(feed_url: str) -> list[dict]:
     """Ambil semua entry dari satu RSS feed, return list of dict siap disimpan."""
     parsed = feedparser.parse(feed_url)  # Unduh & urai feed dari URL
@@ -32,12 +54,19 @@ def fetch_feed(feed_url: str) -> list[dict]:
         if hasattr(entry, "content") and entry.content:  # Kalau tersedia konten penuh
             raw = entry.content[0].get("value", raw)  # Gunakan konten penuh (lebih kaya kata kunci)
         raw = re.sub(r"<[^>]+>", " ", raw)  # Buang semua tag HTML, diganti spasi
+        
+        title = entry.get("title", "").strip()
+        link = entry.get("link", "").strip()
+        source_name = parsed.feed.get("title", feed_url)
+        region = detect_region(feed_url, source_name, title, raw)
+        
         results.append({  # Simpan artikel sebagai dict
-            "title": entry.get("title", "").strip(),  # Judul artikel, spasi pinggir dibersihkan
-            "link": entry.get("link", "").strip(),  # URL artikel, spasi pinggir dibersihkan
-            "source": parsed.feed.get("title", feed_url),  # Nama sumber (nama feed, fallback ke URL)
+            "title": title,  # Judul artikel, spasi pinggir dibersihkan
+            "link": link,  # URL artikel, spasi pinggir dibersihkan
+            "source": source_name,  # Nama sumber (nama feed, fallback ke URL)
             "published_at": _parse_published(entry),  # Waktu terbit artikel (atau None)
             "raw_summary": raw,  # Teks polos isi artikel (tanpa HTML)
+            "region": region,
         })
     return results  # Kembalikan daftar artikel
 

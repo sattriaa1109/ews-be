@@ -18,8 +18,22 @@ class Article(Base):
     published_at = Column(DateTime, nullable=True)  # Waktu artikel terbit (nullable, kadang feed tidak mencantumkan)
     scraped_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Waktu artikel di-scrape, default = waktu sekarang UTC
     raw_summary = Column(Text, nullable=True)  # Isi/ringkasan artikel dalam bentuk teks polos
+    region = Column(String(100), default="Nasional")  # Wilayah/regional berita (misal: Sumatra, Jawa, dll)
 
     alert = relationship("Alert", back_populates="article", uselist=False)  # Relasi 1-1 ke Alert (uselist=False)
+
+
+class User(Base):
+    """Model tabel `users`: menyimpan data pengguna (admin, staff, dll)."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(200), unique=True, nullable=True)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(String(50), default="staff")  # admin, staff, viewer, dll
+    is_active = Column(Integer, default=1)  # 1 = aktif, 0 = nonaktif
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Alert(Base):
