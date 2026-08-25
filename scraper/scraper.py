@@ -3,6 +3,7 @@ import logging  # Untuk menulis log ke konsol
 import re  # Regex, dipakai untuk membersihkan tag HTML dari teks artikel
 from datetime import datetime  # Membuat objek datetime dari hasil parsing feed
 
+import requests  # Library HTTP untuk request dengan custom user-agent
 import feedparser  # Library untuk membaca/mengurai feed RSS/Atom
 
 from config import RSS_FEEDS  # Daftar feed yang akan di-scrape (dari config)
@@ -42,8 +43,13 @@ def detect_region(feed_url: str, source: str, title: str, summary: str) -> str:
 
 
 def fetch_feed(feed_url: str) -> list[dict]:
-    """Ambil semua entry dari satu RSS feed, return list of dict siap disimpan."""
-    parsed = feedparser.parse(feed_url)  # Unduh & urai feed dari URL
+    """Ambil semua entry dari satu RSS feed menggunakan mobile user-agent, return list of dict siap disimpan."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+    }
+    response = requests.get(feed_url, headers=headers, timeout=15)
+    response.raise_for_status()
+    parsed = feedparser.parse(response.text)  # Unduh & urai feed dari URL
     if parsed.bozo:  # bozo = penanda bahwa feed tidak valid/bermasalah
         logger.warning(f"Feed bermasalah saat parsing: {feed_url}")  # Log peringatan tapi tetap lanjut
 

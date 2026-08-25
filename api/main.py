@@ -120,14 +120,14 @@ class UserCreate(BaseModel):
     email: str | None = None
     password: str
     role: str = "staff"
-    is_active: int = 1
+    is_active: int | bool = 1
 
 class UserUpdate(BaseModel):
     username: str | None = None
     email: str | None = None
     password: str | None = None
     role: str | None = None
-    is_active: int | None = None
+    is_active: int | bool | None = None
 
 
 def hash_password(password: str) -> str:
@@ -153,9 +153,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Akun dinonaktifkan")
+    token = secrets.token_hex(32)
     return {
         "success": True,
         "message": "Login berhasil",
+        "token": token,
+        "access_token": token,
         "user": {
             "id": user.id,
             "username": user.username,
@@ -177,7 +180,7 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         email=payload.email,
         hashed_password=hash_password(payload.password),
         role=payload.role,
-        is_active=payload.is_active
+        is_active=int(payload.is_active) if payload.is_active is not None else 1
     )
     db.add(user)
     db.commit()
@@ -222,7 +225,7 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
         email=payload.email,
         hashed_password=hash_password(payload.password),
         role=payload.role,
-        is_active=payload.is_active
+        is_active=int(payload.is_active) if payload.is_active is not None else 1
     )
     db.add(user)
     db.commit()
@@ -262,7 +265,7 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
     if payload.role is not None:
         user.role = payload.role
     if payload.is_active is not None:
-        user.is_active = payload.is_active
+        user.is_active = int(payload.is_active)
         
     db.commit()
     return {"success": True, "message": "User berhasil diperbarui"}
