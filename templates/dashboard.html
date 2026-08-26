@@ -6,9 +6,18 @@
     <title>EWS Monitoring Media - TNI AD</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f5f7; margin: 0; padding: 2rem; }
-        h1 { color: #1a2b4c; }
-        .summary { margin-bottom: 1.5rem; color: #555; }
-        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h1 { color: #1a2b4c; margin-top: 0; }
+        .summary { margin-bottom: 1rem; color: #555; }
+        .control-panel { background: white; padding: 1rem 1.5rem; border-radius: 6px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+        .control-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        button { padding: 0.5rem 1rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; color: white; }
+        .btn-start { background: #27ae60; }
+        .btn-start:hover { background: #219653; }
+        .btn-stop { background: #c0392b; }
+        .btn-stop:hover { background: #a93226; }
+        .btn-run { background: #2980b9; }
+        .btn-run:hover { background: #2471a3; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; }
         th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
         th { background: #1a2b4c; color: white; }
         .score-high { color: #c0392b; font-weight: bold; }
@@ -17,11 +26,27 @@
         .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
         .notified-yes { background: #d5f5e3; color: #1e8449; }
         .notified-no { background: #fadbd8; color: #a93226; }
+        .status-badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
+        .status-running { background: #d5f5e3; color: #1e8449; }
+        .status-stopped { background: #fadbd8; color: #a93226; }
     </style>
 </head>
 <body>
     <h1>EWS Monitoring Media &mdash; TNI AD</h1>
     <div class="summary">Total artikel di-scrape: {{ total_articles }} | Total alert: {{ alerts|length }}</div>
+
+    <div class="control-panel">
+        <div>
+            <strong>Status Scraper:</strong> 
+            <span id="scraperStatusBadge" class="status-badge status-stopped">Memuat...</span>
+            <span id="scraperNextRun" style="font-size: 0.85rem; color: #666; margin-left: 0.5rem;"></span>
+        </div>
+        <div class="control-group">
+            <button class="btn-start" onclick="controlScraper('start')">&#9658; Start Scraper</button>
+            <button class="btn-stop" onclick="controlScraper('stop')">&#9632; Stop Scraper</button>
+            <button class="btn-run" onclick="controlScraper('run-now')">&#9889; Scraping Sekarang</button>
+        </div>
+    </div>
 
     <table>
         <thead>
@@ -55,5 +80,54 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <script>
+        async function fetchScraperStatus() {
+            try {
+                const res = await fetch('/api/scraper/status');
+                const data = await res.json();
+                const badge = document.getElementById('scraperStatusBadge');
+                const nextRun = document.getElementById('scraperNextRun');
+                if (data.running) {
+                    badge.className = 'status-badge status-running';
+                    badge.textContent = 'Aktif (Running)';
+                    if (data.next_run_time) {
+                        const nextTime = new Date(data.next_run_time).toLocaleString('id-ID');
+                        nextRun.textContent = `| Jadwal berikutnya: ${nextTime}`;
+                    } else {
+                        nextRun.textContent = '';
+                    }
+                } else {
+                    badge.className = 'status-badge status-stopped';
+                    badge.textContent = 'Berhenti (Stopped)';
+                    nextRun.textContent = '';
+                }
+            } catch (err) {
+                console.error('Gagal mengambil status scraper', err);
+            }
+        }
+
+        async function controlScraper(action) {
+            let actionName = action === 'start' ? 'menyalakan' : action === 'stop' ? 'menghentikan' : 'menjalankan';
+            if (!confirm(`Apakah Anda yakin ingin ${actionName} scraper?`)) {
+                return;
+            }
+            try {
+                const res = await fetch(`/api/scraper/${action}`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || 'Berhasil');
+                fetchScraperStatus();
+                if (action === 'run-now') {
+                    setTimeout(() => window.location.reload(), 3000);
+                }
+            } catch (err) {
+                alert('Terjadi kesalahan saat mengontrol scraper.');
+                console.error(err);
+            }
+        }
+
+        fetchScraperStatus();
+        setInterval(fetchScraperStatus, 10000);
+    </script>
 </body>
 </html>
