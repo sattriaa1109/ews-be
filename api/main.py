@@ -168,6 +168,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     }
 
 
+@app.post("/api/auth/logout")
+def logout():
+    return {
+        "success": True,
+        "message": "Logout berhasil"
+    }
+
+
 @app.post("/api/auth/register")
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.username == payload.username).first()
