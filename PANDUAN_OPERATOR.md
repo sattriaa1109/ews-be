@@ -9,7 +9,7 @@ Tidak perlu paham pemrograman — cukup ikuti langkah-langkah berikut.
 
 Sistem memantau berita dari internet (media online) secara otomatis, lalu:
 
-1. **Mengumpulkan** berita dari beberapa sumber berita (RSS feed) — otomatis setiap beberapa menit.
+1. **Mengumpulkan** berita dari banyak sumber (ANTARA, CNN Indonesia, Sindonews, CNBC Indonesia, Tribunnews, JPNN, iNews, Katadata, Kemhan, BNN, Google News, dan ANTARA regional) — otomatis setiap beberapa menit.
 2. **Mendeteksi** berita negatif/sensitif yang menyangkut TNI AD (mis. korupsi, kekerasan, pelanggaran HAM).
 3. **Menampilkan** berita yang terdeteksi di **dashboard web**.
 4. **Memberi tahu** lewat **Telegram** secara otomatis.

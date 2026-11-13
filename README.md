@@ -54,6 +54,18 @@ Tim TKJ tinggal:
 - Pastikan `docker compose up -d` dijalankan otomatis saat server boot (bisa pakai `systemd` service atau `restart: unless-stopped` yang sudah diatur di compose file)
 - Monitoring resource container bisa pakai `docker stats` atau tools seperti Portainer
 
+## Sumber Berita
+
+Sumber default sudah aktif otomatis (tidak perlu diisi di `.env`):
+
+- **Media nasional:** ANTARA (terkini, hukum, politik, ekonomi), CNN Indonesia, Sindonews, CNBC Indonesia, Tribunnews, JPNN, iNews, Katadata
+- **Instansi pemerintah:** Kemhan, BNN
+- **Agregator:** Google News (berita populer + pencarian `TNI AD`, `Kodam`, `TNI Angkatan Darat`, `Kemhan`, `Oknum TNI`, `Prajurit TNI`)
+- **Regional ANTARA:** 26 feed dari Sumatra, Jawa, Bali & Nusa Tenggara, Kalimantan, Sulawesi, Maluku, dan Papua
+
+Untuk menambah feed lain, isi `RSS_FEEDS` di `.env` (dipisahkan koma). Daftar lengkap ada di
+`DEFAULT_RSS_FEEDS` dan `REGIONAL_RSS_FEEDS` pada `config.py`.
+
 ## Menyesuaikan Keyword Library
 
 Semua kata kunci ada di `config.py`:

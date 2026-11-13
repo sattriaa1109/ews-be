@@ -109,7 +109,15 @@ docker compose down          # hentikan semua container
 | `TELEGRAM_BOT_TOKEN` | Token bot Telegram (dari @BotFather). Kosongkan untuk menonaktifkan notifikasi |
 | `TELEGRAM_CHAT_ID` | ID chat/group/channel tujuan notifikasi |
 | `SCRAPE_INTERVAL_MINUTES` | Interval scraping dalam menit (mis. `5` = tiap 5 menit) |
-| `RSS_FEEDS` | Daftar URL RSS, dipisahkan koma. Contoh: `https://www.antaranews.com/rss/terkini.xml,https://www.kemhan.go.id/feed` |
+| `SCRAPER_MAX_WORKERS` | Jumlah feed yang diunduh secara paralel. Default `8` |
+| `RSS_FEEDS` | **Tambahan** URL RSS, dipisahkan koma. Sumber default sudah aktif otomatis dari `config.py`, jadi variabel ini boleh dikosongkan |
+
+Sumber berita default yang sudah aktif tanpa konfigurasi tambahan:
+
+- **Media nasional:** ANTARA (terkini, hukum, politik, ekonomi), CNN Indonesia, Sindonews, CNBC Indonesia, Tribunnews, JPNN, iNews, Katadata
+- **Instansi pemerintah:** Kementerian Pertahanan (Kemhan), Badan Narkotika Nasional (BNN)
+- **Agregator:** Google News (berita populer + pencarian kata kunci `TNI AD`, `Kodam`, `TNI Angkatan Darat`, `Kemhan`, `Oknum TNI`, `Prajurit TNI`)
+- **Regional ANTARA:** Aceh, Sumut, Sumbar, Riau, Kepri, Jambi, Bengkulu, Sumsel, Babel, Lampung, Jabar, Jateng, Jatim, Bali, Mataram, Kupang, Kaltim, Kalteng, Kalbar, Kalsel, Makassar, Manado, Sulteng, Sultra, Ambon, dan Papua
 
 ### B. Kata kunci di `config.py`
 

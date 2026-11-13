@@ -15,25 +15,85 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 # Interval scrape otomatis dalam menit; default 15, lalu diubah tipe datanya jadi integer
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "15"))
 
-# Daftar RSS feed yang akan di-scrape
+# Sumber berita default (RSS) yang selalu ikut di-scrape.
+# RSS_FEEDS di .env bersifat tambahan, jadi sumber di bawah ini tetap aktif
+# walaupun operator hanya mengisi sedikit feed di .env.
+DEFAULT_RSS_FEEDS = [
+    # Media nasional
+    "https://www.antaranews.com/rss/terkini.xml",       # ANTARA News — terkini
+    "https://www.antaranews.com/rss/hukum.xml",         # ANTARA News — hukum
+    "https://www.antaranews.com/rss/politik.xml",       # ANTARA News — politik
+    "https://www.antaranews.com/rss/ekonomi.xml",       # ANTARA News — ekonomi
+    "https://www.cnnindonesia.com/rss",                 # CNN Indonesia
+    "https://www.sindonews.com/rss",                    # Sindonews
+    "https://nasional.sindonews.com/rss",               # Sindonews — nasional
+    "https://www.cnbcindonesia.com/rss",                # CNBC Indonesia
+    "https://www.tribunnews.com/rss",                   # Tribunnews
+    "https://www.jpnn.com/rss",                         # JPNN
+    "https://www.inews.id/feed",                        # iNews
+    "https://katadata.co.id/rss",                       # Katadata
+    # Instansi pemerintah / penegak hukum
+    "https://www.kemhan.go.id/feed",                    # Kementerian Pertahanan
+    "https://www.bnn.go.id/feed",                       # Badan Narkotika Nasional
+    # Google News — agregator + pencarian kata kunci sensitif
+    "https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=TNI+AD&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=Kodam&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=TNI+Angkatan+Darat&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=Kemhan&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=Oknum+TNI&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=Prajurit+TNI&hl=id&gl=ID&ceid=ID:id",
+]
+
+# RSS feed regional ANTARA, dikelompokkan per pulau/wilayah.
+REGIONAL_RSS_FEEDS = [
+    # Sumatra
+    "https://aceh.antaranews.com/rss/terkini.xml",
+    "https://sumut.antaranews.com/rss/terkini.xml",
+    "https://sumbar.antaranews.com/rss/terkini.xml",
+    "https://riau.antaranews.com/rss/terkini.xml",
+    "https://kepri.antaranews.com/rss/terkini.xml",
+    "https://jambi.antaranews.com/rss/terkini.xml",
+    "https://bengkulu.antaranews.com/rss/terkini.xml",
+    "https://sumsel.antaranews.com/rss/terkini.xml",
+    "https://babel.antaranews.com/rss/terkini.xml",
+    "https://lampung.antaranews.com/rss/terkini.xml",
+    # Jawa
+    "https://jabar.antaranews.com/rss/terkini.xml",
+    "https://jateng.antaranews.com/rss/terkini.xml",
+    "https://jatim.antaranews.com/rss/terkini.xml",
+    # Bali & Nusa Tenggara
+    "https://bali.antaranews.com/rss/terkini.xml",
+    "https://mataram.antaranews.com/rss/terkini.xml",
+    "https://kupang.antaranews.com/rss/terkini.xml",
+    # Kalimantan
+    "https://kaltim.antaranews.com/rss/terkini.xml",
+    "https://kalteng.antaranews.com/rss/terkini.xml",
+    "https://kalbar.antaranews.com/rss/terkini.xml",
+    "https://kalsel.antaranews.com/rss/terkini.xml",
+    # Sulawesi
+    "https://makassar.antaranews.com/rss/terkini.xml",
+    "https://manado.antaranews.com/rss/terkini.xml",
+    "https://sulteng.antaranews.com/rss/terkini.xml",
+    "https://sultra.antaranews.com/rss/terkini.xml",
+    # Maluku & Papua
+    "https://ambon.antaranews.com/rss/terkini.xml",
+    "https://papua.antaranews.com/rss/terkini.xml",
+]
+
+# Gabungkan: feed dari .env didahulukan, lalu default & regional tanpa duplikat.
 RSS_FEEDS = [
     url.strip()  # Bersihkan spasi di awal/akhir tiap URL
     for url in os.getenv("RSS_FEEDS", "").split(",")  # Ambil nilai RSS_FEEDS dari .env, pecah per koma
     if url.strip()  # Abaikan item yang kosong setelah di-trim
 ]
 
-# Tambahan RSS feed regional (Sumatra & wilayah Indonesia lainnya)
-REGIONAL_RSS_FEEDS = [
-    "https://sumut.antaranews.com/rss/terkini.xml",
-    "https://sumbar.antaranews.com/rss/terkini.xml",
-    "https://riau.antaranews.com/rss/terkini.xml",
-    "https://lampung.antaranews.com/rss/terkini.xml",
-    "https://sumsel.antaranews.com/rss/terkini.xml",
-]
-
-for feed in REGIONAL_RSS_FEEDS:
+for feed in DEFAULT_RSS_FEEDS + REGIONAL_RSS_FEEDS:
     if feed not in RSS_FEEDS:
         RSS_FEEDS.append(feed)
+
+# Jumlah worker paralel saat mengunduh feed (biar siklus scrape tidak terlalu lama).
+SCRAPER_MAX_WORKERS = int(os.getenv("SCRAPER_MAX_WORKERS", "8"))
 
 # Kata kunci konteks: artikel harus mengandung minimal salah satu ini
 # supaya dianggap relevan (mengurangi false positive)

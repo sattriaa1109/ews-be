@@ -1,12 +1,13 @@
 # scraper/scraper.py — Mengambil berita dari RSS feed lalu menyimpannya ke database
 import logging  # Untuk menulis log ke konsol
 import re  # Regex, dipakai untuk membersihkan tag HTML dari teks artikel
+from concurrent.futures import ThreadPoolExecutor, as_completed  # Unduh beberapa feed sekaligus
 from datetime import datetime  # Membuat objek datetime dari hasil parsing feed
 
 import requests  # Library HTTP untuk request dengan custom user-agent
 import feedparser  # Library untuk membaca/mengurai feed RSS/Atom
 
-from config import RSS_FEEDS  # Daftar feed yang akan di-scrape (dari config)
+from config import RSS_FEEDS, SCRAPER_MAX_WORKERS  # Daftar feed & jumlah worker (dari config)
 from database import SessionLocal  # Pabrik sesi database
 from models.tables import Article  # Model tabel artikel
 
@@ -24,17 +25,17 @@ def detect_region(feed_url: str, source: str, title: str, summary: str) -> str:
     """Deteksi wilayah/regional berdasarkan feed URL, sumber, judul, dan ringkasan berita."""
     text = f"{feed_url} {source} {title} {summary}".lower()
     
-    if any(k in text for k in ["sumut", "sumbar", "riau", "lampung", "sumsel", "sumatera", "sumatra", "medan", "padang", "pekanbaru", "palembang", "bengkulu", "jambi", "aceh", "babel", "kepulauan riau", "batam", "tanjung pinang"]):
+    if any(k in text for k in ["sumut", "sumbar", "riau", "kepri", "lampung", "sumsel", "sumatera", "sumatra", "medan", "padang", "pekanbaru", "palembang", "bengkulu", "jambi", "aceh", "babel", "kepulauan riau", "batam", "tanjung pinang"]):
         return "Sumatra"
     elif any(k in text for k in ["jawa", "jakarta", "bandung", "surabaya", "semarang", "yogyakarta", "banten", "jabar", "jateng", "jatim"]):
         return "Jawa"
-    elif any(k in text for k in ["kalimantan", "kaltim", "kalsel", "kalbar", "kalteng", "kalut", "samarinda", "banjarmasin", "pontianak"]):
+    elif any(k in text for k in ["kalimantan", "kaltim", "kalsel", "kalbar", "kalteng", "kalut", "samarinda", "banjarmasin", "pontianak", "balikpapan", "palangkaraya"]):
         return "Kalimantan"
-    elif any(k in text for k in ["sulawesi", "makassar", "manado", "palu", "kendari", "gorontalo", "sulsel", "sulteng"]):
+    elif any(k in text for k in ["sulawesi", "makassar", "manado", "palu", "kendari", "gorontalo", "sulsel", "sulteng", "sultra"]):
         return "Sulawesi"
     elif any(k in text for k in ["papua", "jayapura", "merauke", "sorong", "timika", "irian"]):
         return "Papua"
-    elif any(k in text for k in ["bali", "nusa tenggara", "ntb", "ntt", "kupang", "denpasar"]):
+    elif any(k in text for k in ["bali", "nusa tenggara", "ntb", "ntt", "kupang", "mataram", "denpasar"]):
         return "Bali & Nusa Tenggara"
     elif any(k in text for k in ["maluku", "ambon", "ternate"]):
         return "Maluku"
@@ -63,7 +64,19 @@ def fetch_feed(feed_url: str) -> list[dict]:
         
         title = entry.get("title", "").strip()
         link = entry.get("link", "").strip()
-        source_name = parsed.feed.get("title", feed_url)
+        source_name = parsed.feed.get("title", feed_url) or feed_url
+
+        # Google News menyertakan nama media asli di elemen <source>.
+        # Pakai nama itu supaya sumber yang tersimpan lebih informatif.
+        entry_source = entry.get("source")
+        if isinstance(entry_source, dict) and entry_source.get("title"):
+            media_name = entry_source["title"]
+            # Judul Google News berformat "Judul Berita - Nama Media"; buang suffix-nya.
+            suffix = f" - {media_name}"
+            if title.endswith(suffix):
+                title = title[: -len(suffix)].strip()
+            source_name = media_name
+
         region = detect_region(feed_url, source_name, title, raw)
         
         results.append({  # Simpan artikel sebagai dict
@@ -90,31 +103,37 @@ def run_scrape_job():
     db = SessionLocal()  # Buka sesi database
     new_count = 0  # Penghitung jumlah artikel baru
     try:
-        for feed_url in RSS_FEEDS:  # Loop semua feed yang terdaftar
-            try:
-                items = fetch_feed(feed_url)  # Ambil daftar artikel dari feed ini
-            except Exception:  # Feed gagal diakses/parsing
-                logger.exception(f"Feed gagal diakses: {feed_url}")  # Log error lengkap dengan traceback
-                continue  # Lewati feed ini, lanjut ke feed berikutnya
-            for item in items:  # Loop tiap artikel dari feed tersebut
-                if not item["link"]:  # Artikel tanpa link tidak berguna
-                    continue  # Skip artikel ini
-                exists = db.query(Article).filter(Article.link == item["link"]).first()  # Cek apakah link sudah pernah masuk DB
-                if exists:  # Link sudah ada → duplikat
-                    continue  # Skip, jangan simpan dua kali
-                article = Article(**item)  # Buat objek model dari dict item (key-nya sesuai nama kolom)
-                db.add(article)  # Daftarkan objek ke sesi
-                db.commit()  # Simpan permanen ke database
-                db.refresh(article)  # Muat ulang agar mendapatkan id dari database
-                new_count += 1  # Tambah penghitung artikel baru
-
+        # Unduh semua feed secara paralel; penulisan ke DB tetap dilakukan di thread utama.
+        max_workers = max(1, SCRAPER_MAX_WORKERS)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fetch_feed, feed_url): feed_url for feed_url in RSS_FEEDS}
+            for future in as_completed(futures):
+                feed_url = futures[future]
                 try:
-                    alert = evaluate_article(db, article)  # Jalankan detector untuk artikel baru ini
-                    if alert:  # Artikel lolos threshold → kirim notifikasi Telegram
-                        send_alert_notification(article, alert)  # Kirim alert ke Telegram
-                except Exception:  # Proses deteksi gagal
-                    db.rollback()  # Batalkan perubahan yang belum ter-commit
-                    logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")  # Log error
+                    items = future.result()  # Ambil daftar artikel dari feed ini
+                except Exception:  # Feed gagal diakses/parsing
+                    logger.exception(f"Feed gagal diakses: {feed_url}")  # Log error lengkap dengan traceback
+                    continue  # Lewati feed ini, lanjut ke feed berikutnya
+
+                for item in items:  # Loop tiap artikel dari feed tersebut
+                    if not item["link"]:  # Artikel tanpa link tidak berguna
+                        continue  # Skip artikel ini
+                    exists = db.query(Article).filter(Article.link == item["link"]).first()  # Cek apakah link sudah pernah masuk DB
+                    if exists:  # Link sudah ada → duplikat
+                        continue  # Skip, jangan simpan dua kali
+                    article = Article(**item)  # Buat objek model dari dict item (key-nya sesuai nama kolom)
+                    db.add(article)  # Daftarkan objek ke sesi
+                    db.commit()  # Simpan permanen ke database
+                    db.refresh(article)  # Muat ulang agar mendapatkan id dari database
+                    new_count += 1  # Tambah penghitung artikel baru
+
+                    try:
+                        alert = evaluate_article(db, article)  # Jalankan detector untuk artikel baru ini
+                        if alert:  # Artikel lolos threshold → kirim notifikasi Telegram
+                            send_alert_notification(article, alert)  # Kirim alert ke Telegram
+                    except Exception:  # Proses deteksi gagal
+                        db.rollback()  # Batalkan perubahan yang belum ter-commit
+                        logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")  # Log error
 
         logger.info(f"Scrape job selesai. {new_count} artikel baru diproses.")  # Log ringkasan hasil
     finally:
