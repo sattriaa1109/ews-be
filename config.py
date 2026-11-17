@@ -95,6 +95,22 @@ for feed in DEFAULT_RSS_FEEDS + REGIONAL_RSS_FEEDS:
 # Jumlah worker paralel saat mengunduh feed (biar siklus scrape tidak terlalu lama).
 SCRAPER_MAX_WORKERS = int(os.getenv("SCRAPER_MAX_WORKERS", "8"))
 
+# Google Custom Search Engine (Programmable Search Engine) API.
+# Isi GOOGLE_CSE_API_KEY dan GOOGLE_CSE_ID di .env untuk mengaktifkan sumber ini.
+GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "").strip()
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "").strip()
+# Query pencarian untuk CSE (pisahkan dengan koma). Default berfokus ke TNI AD.
+GOOGLE_CSE_QUERIES = [
+    q.strip()
+    for q in os.getenv(
+        "GOOGLE_CSE_QUERIES",
+        "TNI AD, Kodam, TNI Angkatan Darat, Oknum TNI, Prajurit TNI",
+    ).split(",")
+    if q.strip()
+]
+# Jumlah hasil per query (maks 10 per request sesuai batas API Google CSE).
+GOOGLE_CSE_NUM_RESULTS = int(os.getenv("GOOGLE_CSE_NUM_RESULTS", "10"))
+
 # Kata kunci konteks: artikel harus mengandung minimal salah satu ini
 # supaya dianggap relevan (mengurangi false positive)
 CONTEXT_KEYWORDS = [  # Daftar kata yang menunjukkan artikel menyangkut TNI AD / penegak hukum

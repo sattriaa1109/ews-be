@@ -90,51 +90,68 @@ def fetch_feed(feed_url: str) -> list[dict]:
     return results  # Kembalikan daftar artikel
 
 
+def _store_and_process_items(db, items, evaluate_article, send_alert_notification) -> int:
+    """Simpan item artikel baru ke DB dan jalankan detector/notifier. Kembalikan jumlah artikel baru."""
+    new_count = 0
+    for item in items:
+        if not item.get("link"):
+            continue
+        exists = db.query(Article).filter(Article.link == item["link"]).first()
+        if exists:
+            continue
+        article = Article(**item)
+        db.add(article)
+        db.commit()
+        db.refresh(article)
+        new_count += 1
+
+        try:
+            alert = evaluate_article(db, article)
+            if alert:
+                send_alert_notification(article, alert)
+        except Exception:
+            db.rollback()
+            logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")
+    return new_count
+
+
 def run_scrape_job():
-    """Dipanggil oleh scheduler. Ambil semua feed, simpan artikel baru ke DB,
-    lalu jalankan detector untuk tiap artikel baru."""
+    """Dipanggil oleh scheduler. Ambil semua feed (RSS + Google CSE bila dikonfigurasi),
+    simpan artikel baru ke DB, lalu jalankan detector untuk tiap artikel baru."""
     from detector.detector import evaluate_article  # import lokal, hindari circular import
     from notifier.telegram_bot import send_alert_notification  # import lokal, hindari circular import
+    from config import GOOGLE_CSE_API_KEY, GOOGLE_CSE_ID
 
-    if not RSS_FEEDS:  # Kalau daftar feed kosong
-        logger.warning("RSS_FEEDS kosong, tidak ada feed yang di-scrape")  # Log peringatan
-        return  # Hentikan fungsi
+    if not RSS_FEEDS and not (GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID):
+        logger.warning("Tidak ada sumber berita yang dikonfigurasi (RSS_FEEDS & Google CSE kosong)")
+        return
 
-    db = SessionLocal()  # Buka sesi database
-    new_count = 0  # Penghitung jumlah artikel baru
+    db = SessionLocal()
+    new_count = 0
     try:
-        # Unduh semua feed secara paralel; penulisan ke DB tetap dilakukan di thread utama.
-        max_workers = max(1, SCRAPER_MAX_WORKERS)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(fetch_feed, feed_url): feed_url for feed_url in RSS_FEEDS}
-            for future in as_completed(futures):
-                feed_url = futures[future]
-                try:
-                    items = future.result()  # Ambil daftar artikel dari feed ini
-                except Exception:  # Feed gagal diakses/parsing
-                    logger.exception(f"Feed gagal diakses: {feed_url}")  # Log error lengkap dengan traceback
-                    continue  # Lewati feed ini, lanjut ke feed berikutnya
-
-                for item in items:  # Loop tiap artikel dari feed tersebut
-                    if not item["link"]:  # Artikel tanpa link tidak berguna
-                        continue  # Skip artikel ini
-                    exists = db.query(Article).filter(Article.link == item["link"]).first()  # Cek apakah link sudah pernah masuk DB
-                    if exists:  # Link sudah ada → duplikat
-                        continue  # Skip, jangan simpan dua kali
-                    article = Article(**item)  # Buat objek model dari dict item (key-nya sesuai nama kolom)
-                    db.add(article)  # Daftarkan objek ke sesi
-                    db.commit()  # Simpan permanen ke database
-                    db.refresh(article)  # Muat ulang agar mendapatkan id dari database
-                    new_count += 1  # Tambah penghitung artikel baru
-
+        # 1) Unduh semua RSS feed secara paralel; penulisan ke DB tetap di thread utama.
+        if RSS_FEEDS:
+            max_workers = max(1, SCRAPER_MAX_WORKERS)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(fetch_feed, feed_url): feed_url for feed_url in RSS_FEEDS}
+                for future in as_completed(futures):
+                    feed_url = futures[future]
                     try:
-                        alert = evaluate_article(db, article)  # Jalankan detector untuk artikel baru ini
-                        if alert:  # Artikel lolos threshold → kirim notifikasi Telegram
-                            send_alert_notification(article, alert)  # Kirim alert ke Telegram
-                    except Exception:  # Proses deteksi gagal
-                        db.rollback()  # Batalkan perubahan yang belum ter-commit
-                        logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")  # Log error
+                        items = future.result()
+                    except Exception:
+                        logger.exception(f"Feed gagal diakses: {feed_url}")
+                        continue
+                    new_count += _store_and_process_items(db, items, evaluate_article, send_alert_notification)
 
-        logger.info(f"Scrape job selesai. {new_count} artikel baru diproses.")  # Log ringkasan hasil
+        # 2) Ambil hasil dari Google Custom Search Engine API (jika dikonfigurasi).
+        if GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID:
+            try:
+                from scraper.google_cse import fetch_all_google_cse
+                cse_items = fetch_all_google_cse()
+                new_count += _store_and_process_items(db, cse_items, evaluate_article, send_alert_notification)
+            except Exception:
+                logger.exception("Gagal mengambil data dari Google CSE API")
+
+        logger.info(f"Scrape job selesai. {new_count} artikel baru diproses.")
     finally:
-        db.close()  # Tutup sesi database walau ada error
+        db.close()

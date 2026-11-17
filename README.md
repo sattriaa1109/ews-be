@@ -60,11 +60,25 @@ Sumber default sudah aktif otomatis (tidak perlu diisi di `.env`):
 
 - **Media nasional:** ANTARA (terkini, hukum, politik, ekonomi), CNN Indonesia, Sindonews, CNBC Indonesia, Tribunnews, JPNN, iNews, Katadata
 - **Instansi pemerintah:** Kemhan, BNN
-- **Agregator:** Google News (berita populer + pencarian `TNI AD`, `Kodam`, `TNI Angkatan Darat`, `Kemhan`, `Oknum TNI`, `Prajurit TNI`)
+- **Agregator (RSS):** Google News (berita populer + pencarian `TNI AD`, `Kodam`, `TNI Angkatan Darat`, `Kemhan`, `Oknum TNI`, `Prajurit TNI`)
 - **Regional ANTARA:** 26 feed dari Sumatra, Jawa, Bali & Nusa Tenggara, Kalimantan, Sulawesi, Maluku, dan Papua
 
-Untuk menambah feed lain, isi `RSS_FEEDS` di `.env` (dipisahkan koma). Daftar lengkap ada di
+Untuk menambah feed RSS lain, isi `RSS_FEEDS` di `.env` (dipisahkan koma). Daftar lengkap ada di
 `DEFAULT_RSS_FEEDS` dan `REGIONAL_RSS_FEEDS` pada `config.py`.
+
+### Google Custom Search Engine (CSE) API (opsional)
+
+Selain RSS, sistem dapat mengambil hasil dari [Google Programmable Search Engine](https://programmablesearchengine.google.com/) melalui JSON API:
+
+1. Buat API key di [Google Custom Search JSON API](https://developers.google.com/custom-search/v1/overview)
+2. Buat Search Engine (CSE) dan salin **Search engine ID** (`cx`)
+3. Isi variabel berikut di `.env`:
+   - `GOOGLE_CSE_API_KEY` — API key
+   - `GOOGLE_CSE_ID` — Search engine ID (`cx`)
+   - `GOOGLE_CSE_QUERIES` — (opsional) daftar query dipisah koma; default: `TNI AD,Kodam,TNI Angkatan Darat,Oknum TNI,Prajurit TNI`
+   - `GOOGLE_CSE_NUM_RESULTS` — (opsional) jumlah hasil per query, maks 10 (default 10)
+
+Jika `GOOGLE_CSE_API_KEY` dan `GOOGLE_CSE_ID` diisi, hasil CSE akan otomatis ikut diambil pada setiap siklus scrape dan diproses seperti sumber lainnya (deduplikasi, deteksi, alert).
 
 ## Menyesuaikan Keyword Library
 
