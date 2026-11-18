@@ -10,6 +10,10 @@
         .summary { margin-bottom: 1rem; color: #555; }
         .control-panel { background: white; padding: 1rem 1.5rem; border-radius: 6px; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
         .control-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .filter-panel { background: white; padding: 0.75rem 1.5rem; border-radius: 6px; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+        .filter-panel label { font-weight: bold; color: #1a2b4c; }
+        .filter-panel select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+        .btn-filter { background: #1a2b4c; }
         button { padding: 0.5rem 1rem; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; color: white; }
         .btn-start { background: #27ae60; }
         .btn-start:hover { background: #219653; }
@@ -24,8 +28,11 @@
         .score-mid { color: #d68910; font-weight: bold; }
         a { color: #2471a3; text-decoration: none; }
         .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-        .notified-yes { background: #d5f5e3; color: #1e8449; }
-        .notified-no { background: #fadbd8; color: #a93226; }
+        .level-1 { background: #eaf2f8; color: #2874a6; }
+        .level-2 { background: #e8f8f5; color: #148f77; }
+        .level-3 { background: #fef9e7; color: #9a7d0a; }
+        .level-4 { background: #fdebd0; color: #ca6f1e; }
+        .level-5 { background: #fadbd8; color: #a93226; font-weight: bold; }
         .status-badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
         .status-running { background: #d5f5e3; color: #1e8449; }
         .status-stopped { background: #fadbd8; color: #a93226; }
@@ -33,7 +40,21 @@
 </head>
 <body>
     <h1>EWS Monitoring Media &mdash; TNI AD</h1>
-    <div class="summary">Total artikel di-scrape: {{ total_articles }} | Total alert: {{ alerts|length }}</div>
+    <div class="summary">Total artikel di-scrape: {{ total_articles }} | Total alert: {{ total_alerts }}{% if selected_level %} | Alert level {{ selected_level }}: {{ matching_alerts }}{% endif %}</div>
+
+    <form class="filter-panel" method="get" action="/">
+        <label for="level">Filter Level:</label>
+        <select id="level" name="level" onchange="this.form.submit()">
+            <option value="" {% if not selected_level %}selected{% endif %}>Semua level</option>
+            <option value="1" {% if selected_level == 1 %}selected{% endif %}>Level 1 (skor &lt; 3)</option>
+            <option value="2" {% if selected_level == 2 %}selected{% endif %}>Level 2 (skor 3-4)</option>
+            <option value="3" {% if selected_level == 3 %}selected{% endif %}>Level 3 (skor 5-6)</option>
+            <option value="4" {% if selected_level == 4 %}selected{% endif %}>Level 4 (skor 7-8)</option>
+            <option value="5" {% if selected_level == 5 %}selected{% endif %}>Level 5 (skor &ge; 9)</option>
+        </select>
+        <button type="submit" class="btn-filter">Terapkan</button>
+        {% if selected_level %}<a href="/">Hapus filter</a>{% endif %}
+    </form>
 
     <div class="control-panel">
         <div>
@@ -55,9 +76,9 @@
                 <th>Judul</th>
                 <th>Sumber</th>
                 <th>Skor</th>
+                <th>Level</th>
                 <th>Kategori</th>
                 <th>Kata Terdeteksi</th>
-                <th>Status Kirim</th>
             </tr>
         </thead>
         <tbody>
@@ -67,13 +88,9 @@
                 <td><a href="{{ a.article.link }}" target="_blank">{{ a.article.title }}</a></td>
                 <td>{{ a.article.source }}</td>
                 <td class="{{ 'score-high' if a.severity_score >= 6 else 'score-mid' }}">{{ a.severity_score }}</td>
+                <td><span class="badge level-{{ a.level }}">Level {{ a.level }}</span></td>
                 <td>{{ a.matched_categories }}</td>
                 <td>{{ a.matched_words }}</td>
-                <td>
-                    <span class="badge {{ 'notified-yes' if a.notified else 'notified-no' }}">
-                        {{ 'Terkirim' if a.notified else 'Gagal/Pending' }}
-                    </span>
-                </td>
             </tr>
             {% else %}
             <tr><td colspan="7">Belum ada alert.</td></tr>

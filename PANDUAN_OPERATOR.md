@@ -11,10 +11,9 @@ Sistem memantau berita dari internet (media online) secara otomatis, lalu:
 
 1. **Mengumpulkan** berita dari banyak sumber (ANTARA, CNN Indonesia, Sindonews, CNBC Indonesia, Tribunnews, JPNN, iNews, Katadata, Kemhan, BNN, Google News, dan ANTARA regional) — otomatis setiap beberapa menit.
 2. **Mendeteksi** berita negatif/sensitif yang menyangkut TNI AD (mis. korupsi, kekerasan, pelanggaran HAM).
-3. **Menampilkan** berita yang terdeteksi di **dashboard web**.
-4. **Memberi tahu** lewat **Telegram** secara otomatis.
+3. **Menampilkan** berita yang terdeteksi di **dashboard web**, lengkap dengan skor dan level 1–5.
 
-Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboard atau cek Telegram.
+Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboard dan gunakan filter level.
 
 ---
 
@@ -29,7 +28,7 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
 3. Dashboard akan terlihat seperti ini:
 
    - **Baris ringkasan (atas):** Total artikel di-scrape dan Total alert.
-   - **Tabel:** daftar alert berisi waktu, judul, sumber, skor, kategori, kata terdeteksi, dan status kirim.
+   - **Tabel:** daftar alert berisi waktu, judul, sumber, skor, level, kategori, dan kata terdeteksi.
    - Halaman **otomatis memperbarui tiap 30 detik** — tidak perlu menekan refresh.
 
 ### Cara membaca tabel
@@ -40,17 +39,18 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
 | **Judul** | Judul berita. **Klik** untuk membuka berita aslinya |
 | **Sumber** | Media asal berita |
 | **Skor** | Tingkat keparahan. **Merah** = serius (≥ 6), **kuning** = sedang |
+| **Level** | 1 (rendah) s.d. 5 (sangat serius), dihitung otomatis dari skor |
 | **Kategori** | Jenis masalah (hukum, kekerasan, HAM, disiplin, viral) |
 | **Kata Terdeteksi** | Kata kunci negatif yang muncul di berita |
-| **Status Kirim** | **Terkirim** = sudah masuk Telegram, **Gagal/Pending** = belum masuk |
 
 ---
 
-## 3. Notifikasi Telegram
+## 3. Filter Level di Dashboard
 
-- Semua alert juga dikirim ke grup Telegram yang sudah ditentukan.
-- Format pesan: peringatan berisi judul, sumber, skor, kategori, dan tombol **"Baca artikel"**.
-- Jika tidak ada pesan yang masuk, cek langkah **Pemecahan Masalah** di bawah.
+- Di atas tabel ada **Filter Level**: pilih **Semua level** atau level **1–5**.
+- Level 1 = skor < 3, level 2 = 3–4, level 3 = 5–6, level 4 = 7–8, level 5 = ≥ 9.
+- Pilihan langsung diterapkan dan tetap aktif saat halaman memperbarui diri tiap 30 detik.
+- Klik **Hapus filter** untuk menampilkan semua alert kembali.
 
 ---
 
@@ -65,9 +65,8 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
   - Jika angka total artikel **besar** (ratusan) → sistem berjalan normal, cuma belum ada berita yang cocok.
   - Jika angka total artikel **0** → ada masalah pengambilan berita. Hubungi tim IT.
 
-**Tidak ada notifikasi Telegram, padahal dashboard ada alert**
-- Buka alert tersebut, cek kolom **Status Kirim**.
-- Jika **Gagal/Pending**, berarti token/chat ID bot salah atau bot dikeluarkan dari grup. Hubungi tim IT.
+**Tabel hanya menampilkan level tertentu**
+- Cek pilihan **Filter Level** di atas tabel. Pilih **Semua level** atau klik **Hapus filter** untuk melihat semua alert.
 
 ---
 
@@ -76,9 +75,9 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
 1. Buka dashboard **minimal 1–2 kali sehari** (pagi & sore).
 2. Cek alert yang masuk — baca judulnya, klik untuk melihat berita asli.
 3. Pastikan **Total artikel di-scrape** bertambah (artinya sistem masih mengambil berita).
-4. Konfirmasi notifikasi Telegram masih masuk.
+4. Gunakan filter level untuk fokus pada alert prioritas tinggi.
 
-> Jika ada alert dengan skor tinggi (merah), segera laporkan ke pimpinan/pejabat terkait.
+> Jika ada alert level 4 atau 5 (skor tinggi), segera laporkan ke pimpinan/pejabat terkait.
 
 ---
 
@@ -88,7 +87,7 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
 |---|---|
 | Port dashboard | `8000` |
 | Endpoint status | `http://<server>:8000/api/status` |
-| Endpoint data alert (JSON) | `http://<server>:8000/api/alerts?limit=50` |
+| Endpoint data alert (JSON) | `http://<server>:8000/api/alerts?level=5&limit=50` (`level` opsional) |
 | Container aplikasi | `ews_app` |
 | Container database | `ews_db` |
 | Log aplikasi | `docker compose logs -f app` |

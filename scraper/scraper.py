@@ -90,8 +90,8 @@ def fetch_feed(feed_url: str) -> list[dict]:
     return results  # Kembalikan daftar artikel
 
 
-def _store_and_process_items(db, items, evaluate_article, send_alert_notification) -> int:
-    """Simpan item artikel baru ke DB dan jalankan detector/notifier. Kembalikan jumlah artikel baru."""
+def _store_and_process_items(db, items, evaluate_article) -> int:
+    """Simpan item artikel baru ke DB dan jalankan detector. Kembalikan jumlah artikel baru."""
     new_count = 0
     for item in items:
         if not item.get("link"):
@@ -106,9 +106,7 @@ def _store_and_process_items(db, items, evaluate_article, send_alert_notificatio
         new_count += 1
 
         try:
-            alert = evaluate_article(db, article)
-            if alert:
-                send_alert_notification(article, alert)
+            evaluate_article(db, article)
         except Exception:
             db.rollback()
             logger.exception(f"Gagal memproses artikel: {item.get('title', 'unknown')}")
@@ -119,7 +117,6 @@ def run_scrape_job():
     """Dipanggil oleh scheduler. Ambil semua feed (RSS + Google CSE bila dikonfigurasi),
     simpan artikel baru ke DB, lalu jalankan detector untuk tiap artikel baru."""
     from detector.detector import evaluate_article  # import lokal, hindari circular import
-    from notifier.telegram_bot import send_alert_notification  # import lokal, hindari circular import
     from config import GOOGLE_CSE_API_KEY, GOOGLE_CSE_ID
 
     if not RSS_FEEDS and not (GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID):
@@ -141,14 +138,14 @@ def run_scrape_job():
                     except Exception:
                         logger.exception(f"Feed gagal diakses: {feed_url}")
                         continue
-                    new_count += _store_and_process_items(db, items, evaluate_article, send_alert_notification)
+                    new_count += _store_and_process_items(db, items, evaluate_article)
 
         # 2) Ambil hasil dari Google Custom Search Engine API (jika dikonfigurasi).
         if GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID:
             try:
                 from scraper.google_cse import fetch_all_google_cse
                 cse_items = fetch_all_google_cse()
-                new_count += _store_and_process_items(db, cse_items, evaluate_article, send_alert_notification)
+                new_count += _store_and_process_items(db, cse_items, evaluate_article)
             except Exception:
                 logger.exception("Gagal mengambil data dari Google CSE API")
 

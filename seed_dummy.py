@@ -1,7 +1,6 @@
 # seed_dummy.py — Memasukkan data contoh (dummy) ke database
 # Dipakai untuk menguji dashboard saat belum ada alert asli.
 # Cara pakai:  python seed_dummy.py
-# Catatan: skrip ini TIDAK mengirim notifikasi Telegram.
 import logging
 
 from database import SessionLocal
@@ -75,7 +74,6 @@ def main():
                     severity_score=item["score"],
                     matched_categories=item["categories"],
                     matched_words=item["words"],
-                    notified=0,
                 )
             )
             db.commit()

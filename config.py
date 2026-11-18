@@ -7,11 +7,6 @@ load_dotenv()  # Jalankan load_dotenv agar semua variabel di file .env tersedia 
 # URL koneksi database; kalau DATABASE_URL tidak di-set di .env, pakai default PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ews_user:ews_pass@localhost:5432/ews_db")
 
-# Token bot Telegram untuk mengirim notifikasi; kosong jika belum di-set
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-# ID chat Telegram tujuan notifikasi; kosong jika belum di-set
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-
 # Interval scrape otomatis dalam menit; default 15, lalu diubah tipe datanya jadi integer
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "15"))
 
@@ -147,3 +142,22 @@ NEGATIVE_KEYWORDS = {  # Kamus kategori berisi kata kunci & bobot penalti
 
 # Skor minimum supaya artikel dikirim sebagai alert
 ALERT_THRESHOLD = 2  # Artikel baru jadi alert jika skor >= 2
+
+# Pemetaan skor severity ke level alert 1-5 (dipakai di dashboard & API).
+# Batas atas bersifat eksklusif, misalnya level 2 = skor 3 s.d. < 5.
+LEVEL_RANGES = {
+    1: (0, 3),     # skor < 3
+    2: (3, 5),     # 3 <= skor < 5
+    3: (5, 7),     # 5 <= skor < 7
+    4: (7, 9),     # 7 <= skor < 9
+    5: (9, None),  # skor >= 9 (tanpa batas atas)
+}
+
+
+def get_alert_level(score: float) -> int:
+    """Ubah skor severity menjadi level 1-5 supaya bisa difilter di tampilan."""
+    score = score or 0
+    for level, (lower, upper) in LEVEL_RANGES.items():
+        if score >= lower and (upper is None or score < upper):
+            return level
+    return 5

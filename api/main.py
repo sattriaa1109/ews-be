@@ -2,12 +2,13 @@
 import logging  # Untuk menulis log
 from datetime import datetime, timezone  # datetime & timezone untuk mencatat waktu startup
 
-from fastapi import FastAPI, Depends, Request  # FastAPI: web framework; Depends: injeksi dependency; Request: objek request
+from fastapi import FastAPI, Depends, Request, Query  # FastAPI: web framework; Depends: injeksi dependency; Request: objek request; Query: validasi query param
 from fastapi.middleware.cors import CORSMiddleware  # Middleware untuk mengizinkan akses lintas domain (CORS)
 from fastapi.responses import HTMLResponse  # Tipe respons untuk halaman HTML
 from fastapi.templating import Jinja2Templates  # Render template HTML
 from sqlalchemy.orm import Session  # Tipe sesi database untuk dependency
 
+from config import LEVEL_RANGES  # Rentang skor untuk level alert 1-5
 from database import get_db, init_db  # get_db: dependency sesi DB; init_db: buat tabel
 from models.tables import Alert, Article, User  # Model tabel
 from scheduler import start_scheduler  # Fungsi untuk menyalakan scheduler
@@ -31,6 +32,17 @@ app.add_middleware(  # Daftarkan middleware CORS ke aplikasi
 
 # Simpan waktu startup buat status "uptime sejak"
 APP_STARTED_AT = datetime.now(timezone.utc)  # Catat waktu aplikasi mulai (dalam UTC)
+
+
+def _filter_by_level(query, level: int | None):
+    """Batasi query alert ke rentang skor sesuai level 1-5."""
+    if level is None:
+        return query
+    lower, upper = LEVEL_RANGES[level]
+    query = query.filter(Alert.severity_score >= lower)
+    if upper is not None:
+        query = query.filter(Alert.severity_score < upper)
+    return query
 
 
 @app.on_event("startup")  # Decorator: fungsi ini dipanggil otomatis saat aplikasi dinyalakan
@@ -65,10 +77,13 @@ def get_status(db: Session = Depends(get_db)):  # Dependency membuka sesi databa
 
 
 @app.get("/api/alerts")  # Endpoint GET: daftar alert
-def list_alerts(limit: int = 50, db: Session = Depends(get_db)):  # Parameter limit (default 50) + sesi database
-    alerts = (  # Ambil daftar alert paling baru
-        db.query(Alert)  # Query tabel alert
-        .join(Article)  # Gabung dengan tabel articles
+def list_alerts(
+    level: int | None = Query(None, ge=1, le=5),  # Filter level 1-5 (opsional)
+    limit: int = 50,  # Jumlah maksimal alert yang dikembalikan
+    db: Session = Depends(get_db),  # Sesi database
+):
+    alerts = (  # Ambil daftar alert paling baru, sudah difilter level jika diminta
+        _filter_by_level(db.query(Alert).join(Article), level)
         .order_by(Alert.created_at.desc())  # Urutkan dari yang paling baru
         .limit(limit)  # Batasi jumlah hasil
         .all()  # Eksekusi query
@@ -80,9 +95,9 @@ def list_alerts(limit: int = 50, db: Session = Depends(get_db)):  # Parameter li
             "link": a.article.link,  # Link artikel terkait
             "source": a.article.source,  # Nama sumber
             "severity_score": a.severity_score,  # Skor keparahan
+            "level": a.level,  # Level alert 1-5 (dihitung dari skor)
             "matched_categories": a.matched_categories,  # Kategori yang cocok
             "matched_words": a.matched_words,  # Kata kunci yang cocok
-            "notified": bool(a.notified),  # Status sudah dikirim notifikasi (diubah jadi boolean)
             "created_at": a.created_at.isoformat(),  # Waktu alert dibuat (format ISO)
         }
         for a in alerts
@@ -90,20 +105,28 @@ def list_alerts(limit: int = 50, db: Session = Depends(get_db)):  # Parameter li
 
 
 @app.get("/", response_class=HTMLResponse)  # Endpoint GET: halaman dashboard utama
-def dashboard(request: Request, db: Session = Depends(get_db)):  # Request dibutuhkan untuk template + sesi database
-    alerts = (  # Ambil 50 alert terbaru (query sama seperti /api/alerts)
-        db.query(Alert)  # Query tabel alert
-        .join(Article)  # Gabung dengan tabel articles
-        .order_by(Alert.created_at.desc())  # Urutkan dari yang paling baru
+def dashboard(
+    request: Request,  # Objek request (wajib untuk template)
+    level: int | None = Query(None, ge=1, le=5),  # Filter level 1-5 (opsional)
+    db: Session = Depends(get_db),  # Sesi database
+):
+    query = _filter_by_level(db.query(Alert).join(Article), level)  # Query dasar, sudah difilter level
+    alerts = (  # Ambil 50 alert terbaru sesuai filter
+        query.order_by(Alert.created_at.desc())  # Urutkan dari yang paling baru
         .limit(50)  # Maksimal 50 hasil
         .all()  # Eksekusi query
     )
+    matching_alerts = query.count()  # Jumlah seluruh alert yang cocok dengan filter
+    total_alerts = db.query(Alert).count()  # Total alert tanpa filter, untuk ringkasan
     total_articles = db.query(Article).count()  # Hitung total artikel untuk ditampilkan di dashboard
     return templates.TemplateResponse(  # Render template HTML
         "dashboard.html",  # Nama file template
         {
             "request": request,  # Objek request (wajib untuk Jinja2)
             "alerts": alerts,  # Data alert yang diteruskan ke template
+            "selected_level": level,  # Level yang sedang dipilih di filter
+            "matching_alerts": matching_alerts,  # Jumlah alert hasil filter
+            "total_alerts": total_alerts,  # Total alert sebelum filter
             "total_articles": total_articles,  # Total artikel yang diteruskan ke template
         },
     )

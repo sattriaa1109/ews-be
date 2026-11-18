@@ -4,6 +4,7 @@ from datetime import datetime, timezone  # datetime & timezone untuk menghasilka
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Float  # Tipe-tipe kolom SQLAlchemy
 from sqlalchemy.orm import relationship  # relationship: untuk mendefinisikan relasi antar model
 
+from config import get_alert_level  # Pemetaan skor severity ke level 1-5
 from database import Base  # Base = kelas dasar semua model ORM
 
 
@@ -46,6 +47,10 @@ class Alert(Base):
     matched_categories = Column(String(500))  # Kategori yang cocok, disimpan dipisah koma
     matched_words = Column(Text)  # Kata kunci yang terdeteksi
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))  # Waktu alert dibuat, default = sekarang UTC
-    notified = Column(Integer, default=0)  # 0/1 sebagai boolean sqlite-friendly (penanda sudah/belum dikirim notifikasi)
 
     article = relationship("Article", back_populates="alert")  # Relasi balik ke Article
+
+    @property
+    def level(self) -> int:
+        """Level alert 1-5, dihitung dari skor severity."""
+        return get_alert_level(self.severity_score)

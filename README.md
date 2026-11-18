@@ -1,6 +1,6 @@
 # EWS Monitoring Media & Isu Potensial
 
-Sistem pemantau otomatis pemberitaan media online terkait TNI AD, dengan alert real-time ke Telegram.
+Sistem pemantau otomatis pemberitaan media online terkait TNI AD, dengan dashboard alert dan filter level 1–5.
 
 > **Dokumentasi:**
 > - Panduan lengkap (instalasi, konfigurasi, maintenance): [`USER_MANUAL.md`](USER_MANUAL.md)
@@ -12,7 +12,6 @@ Sistem pemantau otomatis pemberitaan media online terkait TNI AD, dengan alert r
 ews-backend/
 ├── scraper/        # ambil artikel dari RSS feed
 ├── detector/       # keyword matching + scoring severity
-├── notifier/       # kirim alert ke Telegram
 ├── api/            # FastAPI: dashboard + REST endpoint
 ├── models/         # SQLAlchemy models (Article, Alert)
 ├── templates/      # HTML dashboard
@@ -25,9 +24,7 @@ ews-backend/
 
 ## Cara Menjalankan (Development)
 
-1. Copy `.env.example` jadi `.env`, isi `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID`
-   - Buat bot lewat @BotFather di Telegram untuk dapat token
-   - Chat ID bisa didapat dengan invite bot ke grup lalu cek lewat `https://api.telegram.org/bot<TOKEN>/getUpdates`
+1. Copy `.env.example` jadi `.env`, lalu sesuaikan `DATABASE_URL` bila perlu
 2. Install dependencies:
    ```
    pip install -r requirements.txt
@@ -85,12 +82,25 @@ Jika `GOOGLE_CSE_API_KEY` dan `GOOGLE_CSE_ID` diisi, hasil CSE akan otomatis iku
 Semua kata kunci ada di `config.py`:
 - `CONTEXT_KEYWORDS`: kata yang menandakan artikel relevan dengan TNI AD
 - `NEGATIVE_KEYWORDS`: kategori kata sensitif beserta bobotnya
-- `ALERT_THRESHOLD`: skor minimum supaya alert dikirim
+- `ALERT_THRESHOLD`: skor minimum supaya alert dibuat
+- `LEVEL_RANGES`: pemetaan skor ke level alert 1–5 (dipakai filter dashboard & API)
 
 Tinggal tambah/kurangi kata di dictionary ini tanpa perlu ubah logic lain.
 
+## Level Alert (1–5)
+
+Level dihitung otomatis dari `severity_score`, bisa difilter di dashboard atau lewat query param `?level=`.
+
+| Level | Rentang skor |
+|---|---|
+| 1 | < 3 |
+| 2 | 3–4 |
+| 3 | 5–6 |
+| 4 | 7–8 |
+| 5 | ≥ 9 |
+
 ## API Endpoints
 
-- `GET /` — dashboard riwayat alert (HTML)
+- `GET /` — dashboard riwayat alert (HTML), filter dengan `?level=1` s.d. `?level=5`
 - `GET /api/status` — status sistem (total artikel, total alert, waktu scrape terakhir)
-- `GET /api/alerts` — daftar alert dalam format JSON
+- `GET /api/alerts?level=1&limit=50` — daftar alert dalam format JSON (`level` opsional)

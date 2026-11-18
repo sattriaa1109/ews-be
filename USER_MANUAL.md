@@ -2,7 +2,7 @@
 
 Sistem pemantau otomatis pemberitaan media online terkait TNI Angkatan Darat.
 Sistem ini mengambil berita dari RSS feed, mendeteksi berita bernada negatif/sensitif,
-lalu menampilkannya di dashboard web dan mengirim peringatan ke Telegram secara real-time.
+lalu menampilkannya di dashboard web. Alert bisa difilter berdasarkan level 1–5.
 
 > **Panduan singkat untuk tim operator (non-teknis):** lihat `PANDUAN_OPERATOR.md`.
 
@@ -12,15 +12,14 @@ lalu menampilkannya di dashboard web dan mengirim peringatan ke Telegram secara 
 
 ```
 1. Salin .env:          cp .env.example .env
-2. Isi .env:            DATABASE_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, RSS_FEEDS
+2. Isi .env:            DATABASE_URL (sesuaikan bila perlu), RSS_FEEDS (opsional)
 3. Jalankan (Docker):   docker compose up -d --build
 4. Buka dashboard:      http://localhost:8000
 5. Cek status:          http://localhost:8000/api/status
 ```
 
-> Jika ingin menjalankan tanpa Telegram,
-> kosongkan token Telegram di `.env`,
-> lalu `pip install -r requirements.txt` dan `uvicorn api.main:app --reload`.
+> Menjalankan tanpa Docker: `pip install -r requirements.txt`
+> lalu `uvicorn api.main:app --reload`.
 
 ---
 
@@ -30,7 +29,7 @@ lalu menampilkannya di dashboard web dan mengirim peringatan ke Telegram secara 
 |---|---|
 | **Scraper** (`scraper/scraper.py`) | Mengunduh artikel dari daftar RSS feed dan menyimpannya ke database |
 | **Detector** (`detector/detector.py`) | Menilai artikel: apakah relevan dengan TNI AD dan mengandung kata negatif, lalu memberi skor |
-| **Notifier** (`notifier/telegram_bot.py`) | Mengirim alert ke grup/channel Telegram |
+| **Config** (`config.py`) | Mengatur kata kunci, threshold, dan pemetaan skor ke level 1–5 |
 | **Scheduler** (`scheduler.py`) | Menjalankan scraper otomatis setiap interval tertentu |
 | **API + Dashboard** (`api/main.py`, `templates/dashboard.html`) | Halaman web untuk melihat riwayat alert + endpoint JSON untuk frontend lain |
 | **Database** | PostgreSQL (produksi) atau SQLite (cadangan) |
@@ -40,16 +39,16 @@ lalu menampilkannya di dashboard web dan mengirim peringatan ke Telegram secara 
 ```
 RSS Feed → Scraper → Database → Detector (skor severity)
                                     │
-                                    ├─ ≥ ALERT_THRESHOLD → buat Alert → Kirim Telegram
+                                    ├─ ≥ ALERT_THRESHOLD → buat Alert (level 1–5)
                                     └─ < ALERT_THRESHOLD → dilewati
-Dashboard / API ← baca dari Database
+Dashboard / API ← baca dari Database (bisa difilter per level)
 ```
 
 1. Scraper mengambil artikel baru dari tiap feed (berjalan tiap `SCRAPE_INTERVAL_MINUTES` menit, dan sekali saat aplikasi start).
 2. Setiap artikel baru diperiksa oleh Detector:
    - Harus mengandung minimal satu **kata konteks** (mis. "TNI AD", "Kodam", "polisi").
    - Dihitung skor berdasarkan **kata negatif** yang muncul × bobot kategorinya.
-   - Jika skor **≥ ALERT_THRESHOLD**, dibuat record **Alert** dan dikirim ke Telegram.
+   - Jika skor **≥ ALERT_THRESHOLD**, dibuat record **Alert** dengan level 1–5.
 3. Alert yang sudah dibuat tampil di dashboard `GET /` dan bisa diakses lewat `GET /api/alerts`.
 
 ---
@@ -106,8 +105,6 @@ docker compose down          # hentikan semua container
 | Variabel | Deskripsi |
 |---|---|
 | `DATABASE_URL` | Koneksi database. Contoh Postgres: `postgresql://ews_user:ews_pass@localhost:5432/ews_db`. Contoh SQLite: `sqlite:///./ews_local.db` |
-| `TELEGRAM_BOT_TOKEN` | Token bot Telegram (dari @BotFather). Kosongkan untuk menonaktifkan notifikasi |
-| `TELEGRAM_CHAT_ID` | ID chat/group/channel tujuan notifikasi |
 | `SCRAPE_INTERVAL_MINUTES` | Interval scraping dalam menit (mis. `5` = tiap 5 menit) |
 | `SCRAPER_MAX_WORKERS` | Jumlah feed yang diunduh secara paralel. Default `8` |
 | `RSS_FEEDS` | **Tambahan** URL RSS, dipisahkan koma. Sumber default sudah aktif otomatis dari `config.py`, jadi variabel ini boleh dikosongkan |
@@ -128,6 +125,7 @@ Semua aturan deteksi dikendalikan di `config.py`. Tidak perlu mengubah kode lain
 | `CONTEXT_KEYWORDS` | Artikel harus mengandung minimal salah satu kata ini agar dianggap relevan (mengurangi false positive) |
 | `NEGATIVE_KEYWORDS` | Kategori kata sensitif + bobot. Skor = jumlah kata yang cocok × bobot kategori |
 | `ALERT_THRESHOLD` | Skor minimum agar artikel menjadi alert. Default `2` |
+| `LEVEL_RANGES` / `get_alert_level()` | Pemetaan skor ke level 1–5 yang dipakai di dashboard & API |
 
 Daftar kategori `NEGATIVE_KEYWORDS` beserta bobotnya:
 
@@ -148,18 +146,23 @@ Daftar kategori `NEGATIVE_KEYWORDS` beserta bobotnya:
 
 ---
 
-## 4. Setup Notifikasi Telegram
+## 4. Level Alert (1–5)
 
-1. Di Telegram, cari **@BotFather**, buat bot baru dengan perintah `/newbot`, ikuti instruksinya. Simpan token yang diberikan.
-2. Buat grup (atau channel) tempat notifikasi dikirim, lalu tambahkan bot ke grup tersebut sebagai anggota.
-3. Ambil `chat_id`:
-   - Kirim satu pesan apa saja ke grup yang berisi bot.
-   - Buka di browser:
-     ```
-     https://api.telegram.org/bot<TOKEN>/getUpdates
-     ```
-   - Cari nilai `chat` → `id` di hasilnya (untuk grup biasanya angka negatif, mis. `-1001234567890`).
-4. Isi `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di `.env`, lalu restart aplikasi.
+Level dihitung otomatis dari `severity_score`, tidak perlu diisi manual:
+
+| Level | Rentang skor | Keterangan |
+|---|---|---|
+| 1 | < 3 | Rendah |
+| 2 | 3–4 | Sedang |
+| 3 | 5–6 | Cukup serius |
+| 4 | 7–8 | Serius |
+| 5 | ≥ 9 | Sangat serius |
+
+Cara memakai filter:
+- Di dashboard, pilih level pada **Filter Level** lalu klik **Terapkan** (pilihan langsung tersimpan di URL).
+- Lewat API: `GET /api/alerts?level=4&limit=50`.
+- Filter tetap aktif walau halaman auto-refresh tiap 30 detik.
+- Batas tiap level bisa diubah lewat `LEVEL_RANGES` di `config.py`, lalu restart aplikasi.
 
 ---
 
@@ -173,9 +176,9 @@ Buka `http://localhost:8000` (halaman ini auto-refresh tiap 30 detik).
 | **Judul** | Judul artikel (klik untuk membuka sumbernya) |
 | **Sumber** | Nama feed/media asal |
 | **Skor** | Skor severity (merah = ≥ 6, kuning = di bawah itu) |
+| **Level** | Level 1–5 hasil pemetaan skor (lihat bagian 4) |
 | **Kategori** | Kategori negatif yang terdeteksi |
 | **Kata Terdeteksi** | Kata kunci negatif yang muncul |
-| **Status Kirim** | `Terkirim` = sudah masuk Telegram, `Gagal/Pending` = belum/kegagalan |
 
 Bagian atas halaman menampilkan ringkasan: **Total artikel di-scrape** dan **Total alert**.
 
@@ -185,12 +188,12 @@ Bagian atas halaman menampilkan ringkasan: **Total artikel di-scrape** dan **Tot
 |---|---|
 | `GET /` | Halaman dashboard (HTML) |
 | `GET /api/status` | Status sistem: total artikel, total alert, waktu scrape terakhir |
-| `GET /api/alerts?limit=50` | Daftar alert terbaru dalam format JSON (untuk frontend lain) |
+| `GET /api/alerts?level=1..5&limit=50` | Daftar alert terbaru dalam format JSON; `level` opsional |
 
 Contoh pemakaian:
 ```bash
 curl http://localhost:8000/api/status
-curl "http://localhost:8000/api/alerts?limit=10"
+curl "http://localhost:8000/api/alerts?level=5&limit=10"
 ```
 
 ---
@@ -217,7 +220,7 @@ db.close()
 "
 ```
 
-> Skrip ini hanya membuat alert, **tidak** mengirim notifikasi Telegram.
+> Skrip ini hanya membuat alert; level tetap dihitung otomatis dari skor saat ditampilkan.
 
 ### Menghapus semua alert
 
@@ -247,7 +250,7 @@ PGPASSWORD=ews_pass psql -h localhost -U ews_user -d ews_db
 |---|---|
 | Dashboard tampil "Belum ada alert." | Belum ada artikel yang lolos threshold. Cek `Total artikel` di ringkasan — jika 0, berarti scraper gagal (lihat log). Jika angka artikel besar tapi alert 0, artinya tidak ada berita yang memenuhi konteks + skor. Coba longgarkan `CONTEXT_KEYWORDS` / turunkan `ALERT_THRESHOLD`, lalu evaluasi ulang data lama |
 | `Total artikel` tetap 0 | RSS feed tidak bisa diakses, atau `RSS_FEEDS` kosong di `.env`. Cek log: `docker compose logs app` |
-| Notifikasi Telegram tidak terkirim | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` belum diisi, atau chat_id salah. Cek status "Gagal/Pending" di dashboard dan log notifier |
+| Filter level tidak berubah | Pastikan URL dashboard membawa `?level=...`. Klik **Hapus filter** untuk kembali ke semua level, atau cek `LEVEL_RANGES` di `config.py` |
 | Setelah ubah kata kunci hasilnya tidak berubah | Perubahan hanya berlaku untuk artikel baru. Evaluasi ulang data lama (lihat bagian Pemeliharaan) |
 | Error koneksi database | Pastikan PostgreSQL berjalan dan `DATABASE_URL` di `.env` benar |
 

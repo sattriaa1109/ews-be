@@ -54,7 +54,6 @@ def evaluate_article(db, article) -> Alert | None:
         severity_score=score,  # Simpan skor keparahan
         matched_categories=",".join(categories),  # Simpan kategori (dipisah koma)
         matched_words=", ".join(sorted(set(words))),  # Simpan kata unik yang terurut (dipisah koma-spasi)
-        notified=0,  # Belum dikirim notifikasi
     )
     db.add(alert)  # Daftarkan alert ke sesi
     db.commit()  # Simpan ke database
