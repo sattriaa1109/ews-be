@@ -4,8 +4,9 @@ from dotenv import load_dotenv  # Import load_dotenv untuk memuat isi file .env 
 
 load_dotenv()  # Jalankan load_dotenv agar semua variabel di file .env tersedia untuk program
 
-# URL koneksi database; kalau DATABASE_URL tidak di-set di .env, pakai default PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://ews_user:ews_pass@localhost:5432/ews_db")
+# URL koneksi database; default SQLite lokal supaya aplikasi jalan tanpa Docker/PostgreSQL.
+# Kalau mau pakai PostgreSQL, set DATABASE_URL di .env secara eksplisit.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ews_local.db")
 
 # Interval scrape otomatis dalam menit; default 15, lalu diubah tipe datanya jadi integer
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "15"))

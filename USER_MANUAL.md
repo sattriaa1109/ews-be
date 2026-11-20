@@ -32,7 +32,7 @@ lalu menampilkannya di dashboard web. Alert bisa difilter berdasarkan level 1–
 | **Config** (`config.py`) | Mengatur kata kunci, threshold, dan pemetaan skor ke level 1–5 |
 | **Scheduler** (`scheduler.py`) | Menjalankan scraper otomatis setiap interval tertentu |
 | **API + Dashboard** (`api/main.py`, `templates/dashboard.html`) | Halaman web untuk melihat riwayat alert + endpoint JSON untuk frontend lain |
-| **Database** | PostgreSQL (produksi) atau SQLite (cadangan) |
+| **Database** | SQLite lokal (`ews_local.db`, default) — PostgreSQL opsional |
 
 ### Alur kerja
 
@@ -55,20 +55,45 @@ Dashboard / API ← baca dari Database (bisa difilter per level)
 
 ## 2. Instalasi & Menjalankan
 
-### A. Menjalankan dengan Docker (cara yang disarankan)
+### A. Menjalankan lokal tanpa Docker (cara yang disarankan)
 
-Persyaratan: Docker & Docker Compose terpasang.
+Persyaratan: Linux dengan Python 3.10+. Tidak perlu Docker maupun PostgreSQL.
 
-1. Siapkan konfigurasi:
+1. Siapkan virtual environment & dependency:
    ```bash
-   cp .env.example .env
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
    ```
-2. Isi `.env` (lihat bagian **Konfigurasi**).
-3. Jalankan:
+2. Siapkan konfigurasi (default sudah SQLite):
    ```bash
-   docker compose up -d --build
+   cp -n .env.example .env
    ```
-4. Buka dashboard di `http://localhost:8000`.
+3. Isi data dummy untuk testing (opsional):
+   ```bash
+   python seed_dummy.py
+   ```
+4. Jalankan server:
+   ```bash
+   uvicorn api.main:app --reload
+   ```
+5. Buka dashboard di `http://localhost:8000`.
+
+Data tersimpan di `ews_local.db` di folder proyek. Untuk backup, cukup salin file itu.
+
+Akun dummy yang tersedia: `admin`/`admin123`, `staff`/`staff123`,
+`operator1`/`operator123`, `operator2`/`operator123`, `analis1`/`analis123`,
+`viewer1`/`viewer123`.
+
+### B. Menjalankan dengan Docker (opsional / legacy)
+
+`docker-compose.yml` dan `docker/` masih ada kalau ingin memakai PostgreSQL.
+Jika memakai jalur ini, set `DATABASE_URL` di `.env` ke URL PostgreSQL, lalu:
+
+```bash
+docker compose up -d --build
+docker exec -it ews_app python seed_user_dummy.py   # isi user dummy
+```
 
 Perintah berguna lainnya:
 
@@ -78,24 +103,6 @@ docker compose restart app   # restart aplikasi
 docker compose down          # hentikan semua container
 ```
 
-### B. Menjalankan tanpa Docker (development)
-
-1. Persyaratan: Python 3.10+, PostgreSQL berjalan di `localhost:5432` (atau pakai SQLite).
-2. Buat database PostgreSQL:
-   ```bash
-   createdb ews_db
-   ```
-3. Siapkan `.env` (`DATABASE_URL` otomatis menggunakan PostgreSQL secara default).
-4. Install dependency:
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. Jalankan server:
-   ```bash
-   uvicorn api.main:app --reload
-   ```
-6. Buka dashboard di `http://localhost:8000`.
-
 ---
 
 ## 3. Konfigurasi
@@ -104,7 +111,7 @@ docker compose down          # hentikan semua container
 
 | Variabel | Deskripsi |
 |---|---|
-| `DATABASE_URL` | Koneksi database. Contoh Postgres: `postgresql://ews_user:ews_pass@localhost:5432/ews_db`. Contoh SQLite: `sqlite:///./ews_local.db` |
+| `DATABASE_URL` | Koneksi database. Default: `sqlite:///./ews_local.db` (tanpa Docker). Alternatif Postgres: `postgresql://ews_user:ews_pass@localhost:5432/ews_db` |
 | `SCRAPE_INTERVAL_MINUTES` | Interval scraping dalam menit (mis. `5` = tiap 5 menit) |
 | `SCRAPER_MAX_WORKERS` | Jumlah feed yang diunduh secara paralel. Default `8` |
 | `RSS_FEEDS` | **Tambahan** URL RSS, dipisahkan koma. Sumber default sudah aktif otomatis dari `config.py`, jadi variabel ini boleh dikosongkan |

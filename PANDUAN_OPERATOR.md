@@ -88,9 +88,9 @@ Kesimpulannya: operator tidak perlu memantau media satu-satu. Cukup buka dashboa
 | Port dashboard | `8000` |
 | Endpoint status | `http://<server>:8000/api/status` |
 | Endpoint data alert (JSON) | `http://<server>:8000/api/alerts?level=5&limit=50` (`level` opsional) |
-| Container aplikasi | `ews_app` |
-| Container database | `ews_db` |
-| Log aplikasi | `docker compose logs -f app` |
+| Proses aplikasi | `uvicorn api.main:app` (jalankan di terminal/virtual environment) |
+| Database | `ews_local.db` (SQLite, di folder proyek) |
+| Log aplikasi | output terminal tempat `uvicorn` dijalankan (atau `journalctl` jika pakai systemd) |
 | Interval pengambilan berita | sesuai `SCRAPE_INTERVAL_MINUTES` di `.env` |
 
 Panduan teknis lengkap (instalasi, konfigurasi kata kunci, maintenance):

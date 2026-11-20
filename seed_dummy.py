@@ -5,6 +5,7 @@ import logging
 
 from database import SessionLocal
 from models.tables import Article, Alert
+from seed_user_dummy import seed_users
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("seed")
@@ -80,6 +81,8 @@ def main():
             created += 1
             logger.info(f"Alert contoh dibuat: {item['title']}")
         logger.info(f"Selesai. {created} alert contoh dimasukkan.")
+        # User dummy ikut di-seed agar akun untuk login tersedia saat testing
+        seed_users(db)
     finally:
         db.close()
 

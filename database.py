@@ -1,4 +1,6 @@
 # database.py — Setup koneksi database SQLAlchemy
+import logging  # Untuk mencatat error saat migrasi ringan
+
 from sqlalchemy import create_engine, text  # create_engine: membuat mesin koneksi ke database
 from sqlalchemy.orm import sessionmaker, declarative_base  # sessionmaker: pabrik sesi DB; declarative_base: dasar model ORM
 
@@ -25,29 +27,31 @@ def get_db():
 
 
 def init_db():
-    import hashlib
-    import secrets
+    from auth_utils import hash_password
     from models.tables import Article, Alert, User  # noqa: F401  # Impor model supaya tabel terdaftar di metadata
     Base.metadata.create_all(bind=engine)  # Buat semua tabel yang belum ada di database
 
-    # Pastikan kolom region ada jika tabel articles sudah ada sebelumnya di database
+    # Pastikan kolom region ada jika tabel articles sudah ada sebelumnya.
+    # SQLite tidak mendukung "ADD COLUMN IF NOT EXISTS", jadi cek dulu daftar kolomnya.
     try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE articles ADD COLUMN IF NOT EXISTS region VARCHAR(100) DEFAULT 'Nasional';"))
+        from sqlalchemy import inspect
+
+        columns = {col["name"] for col in inspect(engine).get_columns("articles")}
+        if "region" not in columns:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE articles ADD COLUMN region VARCHAR(100) DEFAULT 'Nasional'"))
     except Exception:
-        pass
+        logging.getLogger(__name__).exception("Gagal memastikan kolom region pada tabel articles")
 
     # Seed default admin & staff jika belum ada
     db = SessionLocal()
     try:
         admin_user = db.query(User).filter(User.username == "admin").first()
         if not admin_user:
-            salt = secrets.token_hex(16)
-            pwd_hash = hashlib.sha256((salt + "admin123").encode()).hexdigest()
             admin_user = User(
                 username="admin",
                 email="admin@ews.mil.id",
-                hashed_password=f"{salt}${pwd_hash}",
+                hashed_password=hash_password("admin123"),
                 role="admin",
                 is_active=1
             )
@@ -56,12 +60,10 @@ def init_db():
 
         staff_user = db.query(User).filter(User.username == "staff").first()
         if not staff_user:
-            salt = secrets.token_hex(16)
-            pwd_hash = hashlib.sha256((salt + "staff123").encode()).hexdigest()
             staff_user = User(
                 username="staff",
                 email="staff@ews.mil.id",
-                hashed_password=f"{salt}${pwd_hash}",
+                hashed_password=hash_password("staff123"),
                 role="staff",
                 is_active=1
             )

@@ -8,12 +8,12 @@ from fastapi.responses import HTMLResponse  # Tipe respons untuk halaman HTML
 from fastapi.templating import Jinja2Templates  # Render template HTML
 from sqlalchemy.orm import Session  # Tipe sesi database untuk dependency
 
+from auth_utils import hash_password, verify_password  # Hash & verifikasi password (format sama dengan seeder)
 from config import LEVEL_RANGES  # Rentang skor untuk level alert 1-5
 from database import get_db, init_db  # get_db: dependency sesi DB; init_db: buat tabel
 from models.tables import Alert, Article, User  # Model tabel
 from scheduler import start_scheduler  # Fungsi untuk menyalakan scheduler
 from pydantic import BaseModel
-import hashlib
 import secrets
 
 logging.basicConfig(level=logging.INFO)  # Set level log ke INFO agar log terlihat di konsol
@@ -151,20 +151,6 @@ class UserUpdate(BaseModel):
     password: str | None = None
     role: str | None = None
     is_active: int | bool | None = None
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    pwd_hash = hashlib.sha256((salt + password).encode()).hexdigest()
-    return f"{salt}${pwd_hash}"
-
-
-def verify_password(password: str, stored_hash: str) -> bool:
-    try:
-        salt, pwd_hash = stored_hash.split("$")
-        return hashlib.sha256((salt + password).encode()).hexdigest() == pwd_hash
-    except Exception:
-        return False
 
 
 @app.post("/api/auth/login")

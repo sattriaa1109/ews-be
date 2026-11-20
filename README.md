@@ -13,43 +13,56 @@ ews-backend/
 ├── scraper/        # ambil artikel dari RSS feed
 ├── detector/       # keyword matching + scoring severity
 ├── api/            # FastAPI: dashboard + REST endpoint
-├── models/         # SQLAlchemy models (Article, Alert)
-├── templates/      # HTML dashboard
-├── docker/         # Dockerfile
-├── config.py       # semua konfigurasi & keyword library
-├── database.py     # setup DB session
-├── scheduler.py    # APScheduler job periodik
-└── docker-compose.yml
+├── models/             # SQLAlchemy models (Article, Alert, User)
+├── templates/          # HTML dashboard
+├── auth_utils.py       # hash & verifikasi password (dipakai bersama)
+├── seed_dummy.py       # seed artikel/alert + user dummy
+├── seed_user_dummy.py  # seed user dummy saja
+├── config.py           # semua konfigurasi & keyword library
+├── database.py         # setup DB session
+├── scheduler.py        # APScheduler job periodik
+├── ews_local.db        # database SQLite lokal (default)
+├── docker/             # Dockerfile (opsional, legacy)
+└── docker-compose.yml  # opsional, legacy
 ```
 
-## Cara Menjalankan (Development)
+## Cara Menjalankan (lokal, tanpa Docker — disarankan)
 
-1. Copy `.env.example` jadi `.env`, lalu sesuaikan `DATABASE_URL` bila perlu
-2. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Jalankan server:
-   ```
-   uvicorn api.main:app --reload
-   ```
-4. Buka dashboard di `http://localhost:8000`
+Default memakai SQLite (`ews_local.db`), jadi tidak perlu Docker atau PostgreSQL.
 
-## Cara Menjalankan (Docker - untuk serah terima ke tim TKJ)
+```bash
+# 1. Siapkan virtual environment & dependency
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Konfigurasi (sudah default SQLite; salin jika belum ada .env)
+cp -n .env.example .env
+
+# 3. Isi data dummy (opsional, untuk testing login & dashboard)
+python seed_dummy.py
+
+# 4. Jalankan server
+uvicorn api.main:app --reload
+```
+
+Buka dashboard di `http://localhost:8000`.
+
+Akun dummy: `admin`/`admin123`, `staff`/`staff123`, `operator1`/`operator123`,
+`operator2`/`operator123`, `analis1`/`analis123`, `viewer1`/`viewer123`.
+
+## Catatan Docker (opsional / legacy)
+
+`docker-compose.yml` dan `docker/` masih disimpan kalau suatu hari ingin memakai
+PostgreSQL, tapi bukan lagi jalur utama. Cara lama:
 
 ```
 docker compose up -d --build
 ```
 
-Ini akan menjalankan 2 container:
-- `ews_app` — aplikasi FastAPI + scraper + scheduler (port 8000)
-- `ews_db` — PostgreSQL (port 5432)
-
-Tim TKJ tinggal:
-- Pastikan port 8000 dibuka di firewall (UFW) sesuai kebutuhan akses
-- Setup reverse proxy (nginx) kalau perlu domain/HTTPS
-- Pastikan `docker compose up -d` dijalankan otomatis saat server boot (bisa pakai `systemd` service atau `restart: unless-stopped` yang sudah diatur di compose file)
-- Monitoring resource container bisa pakai `docker stats` atau tools seperti Portainer
+Itu menjalankan `ews_app` (port 8000) dan `ews_db` (PostgreSQL port 5432).
+Kalau memakai jalur ini, set `DATABASE_URL` di `.env` ke URL PostgreSQL dan jalankan
+`python seed_user_dummy.py` di dalam container app untuk mengisi user dummy.
 
 ## Sumber Berita
 

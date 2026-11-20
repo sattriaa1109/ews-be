@@ -1,0 +1,3 @@
+# Opsional: hanya diperlukan kalau memakai DATABASE_URL PostgreSQL.
+# Tidak dipakai oleh setup default SQLite (tanpa Docker).
+psycopg2-binary==2.9.9
