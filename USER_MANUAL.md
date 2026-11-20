@@ -11,15 +11,16 @@ lalu menampilkannya di dashboard web. Alert bisa difilter berdasarkan level 1–
 ## Ringkasan Cepat (Quick Start)
 
 ```
-1. Salin .env:          cp .env.example .env
-2. Isi .env:            DATABASE_URL (sesuaikan bila perlu), RSS_FEEDS (opsional)
-3. Jalankan (Docker):   docker compose up -d --build
-4. Buka dashboard:      http://localhost:8000
-5. Cek status:          http://localhost:8000/api/status
+1. Siapkan PostgreSQL di host/VM, lalu buat user & database (lihat bagian 2)
+2. Salin .env:          cp .env.example .env
+3. Isi .env:            DATABASE_URL (host Postgres), RSS_FEEDS (opsional)
+4. Install dependency:  pip install -r requirements.txt
+5. Jalankan:            uvicorn api.main:app --reload
+6. Buka dashboard:      http://localhost:8000
+7. Cek status:          http://localhost:8000/api/status
 ```
 
-> Menjalankan tanpa Docker: `pip install -r requirements.txt`
-> lalu `uvicorn api.main:app --reload`.
+> Tidak pakai Docker. Driver `pg8000` sudah termasuk di requirements.
 
 ---
 
@@ -32,7 +33,7 @@ lalu menampilkannya di dashboard web. Alert bisa difilter berdasarkan level 1–
 | **Config** (`config.py`) | Mengatur kata kunci, threshold, dan pemetaan skor ke level 1–5 |
 | **Scheduler** (`scheduler.py`) | Menjalankan scraper otomatis setiap interval tertentu |
 | **API + Dashboard** (`api/main.py`, `templates/dashboard.html`) | Halaman web untuk melihat riwayat alert + endpoint JSON untuk frontend lain |
-| **Database** | SQLite lokal (`ews_local.db`, default) — PostgreSQL opsional |
+| **Database** | PostgreSQL di host/VM (driver `pg8000`, tanpa Docker) |
 
 ### Alur kerja
 
@@ -55,12 +56,27 @@ Dashboard / API ← baca dari Database (bisa difilter per level)
 
 ## 2. Instalasi & Menjalankan
 
-### A. Menjalankan lokal tanpa Docker (cara yang disarankan)
+### A. Siapkan PostgreSQL (tanpa Docker)
 
-Persyaratan: Python 3.10+ (Linux atau Windows). Tidak perlu Docker maupun PostgreSQL.
-Jalankan semua perintah dari folder root proyek.
+```bash
+# Debian/Ubuntu
+sudo apt install -y postgresql
+sudo systemctl enable --now postgresql
 
-**Linux:**
+# Buat user & database
+sudo -u postgres psql -c "CREATE USER ews_user WITH PASSWORD 'ews_pass';"
+sudo -u postgres createdb -O ews_user ews_db
+```
+
+Jika koneksi localhost ditolak dengan `Ident authentication failed`, ubah metode
+autentikasi `host` untuk `127.0.0.1/32` di `pg_hba.conf` menjadi `scram-sha-256`
+(atau `md5`), lalu `sudo systemctl reload postgresql`.
+
+### B. Jalankan aplikasi
+
+Persyaratan: Python 3.10+. Jalankan dari folder root proyek.
+
+**Linux (BE / VM Linux):**
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -81,34 +97,22 @@ uvicorn api.main:app --reload
 Jika aktivasi venv ditolak, jalankan dulu
 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
 
-**VM server/admin:** ikuti perintah sesuai OS VM. Untuk diakses dari komputer lain,
-pakai `uvicorn api.main:app --host 0.0.0.0 --port 8000` dan buka port 8000 di firewall VM.
-`.env` dan `ews_local.db` tidak ikut ter-commit, jadi harus dibuat/disalin manual ke VM.
+Windows yang tidak install Postgres lokal bisa arahkan `DATABASE_URL` di `.env` ke
+`postgresql+pg8000://ews_user:ews_pass@<IP-VM>:5432/ews_db` (buka port 5432 di firewall VM).
 
-Data tersimpan di `ews_local.db` di folder proyek (file SQLite bisa dipindah antar OS).
-Untuk backup, cukup salin file itu.
+**VM server/admin:** pakai `uvicorn api.main:app --host 0.0.0.0 --port 8000`
+supaya bisa diakses dari komputer lain, lalu buka port 8000 di firewall VM.
+File `.env` tidak ikut ter-commit, jadi harus dibuat manual di VM.
+Data tersimpan di PostgreSQL — backup pakai `pg_dump`, bukan salin file DB.
 
 Akun dummy yang tersedia: `admin`/`admin123`, `staff`/`staff123`,
 `operator1`/`operator123`, `operator2`/`operator123`, `analis1`/`analis123`,
 `viewer1`/`viewer123`.
 
-### B. Menjalankan dengan Docker (opsional / legacy)
+### C. Docker (legacy, jangan dipakai)
 
-`docker-compose.yml` dan `docker/` masih ada kalau ingin memakai PostgreSQL.
-Jika memakai jalur ini, set `DATABASE_URL` di `.env` ke URL PostgreSQL, lalu:
-
-```bash
-docker compose up -d --build
-docker exec -it ews_app python seed_user_dummy.py   # isi user dummy
-```
-
-Perintah berguna lainnya:
-
-```bash
-docker compose logs -f app   # lihat log aplikasi
-docker compose restart app   # restart aplikasi
-docker compose down          # hentikan semua container
-```
+`docker-compose.yml` dan `docker/` hanya arsip. Jalur utama sekarang PostgreSQL
+langsung di host/VM; tidak perlu `docker compose up`.
 
 ---
 
@@ -118,7 +122,7 @@ docker compose down          # hentikan semua container
 
 | Variabel | Deskripsi |
 |---|---|
-| `DATABASE_URL` | Koneksi database. Default: `sqlite:///./ews_local.db` (tanpa Docker). Alternatif Postgres: `postgresql://ews_user:ews_pass@localhost:5432/ews_db` |
+| `DATABASE_URL` | Koneksi PostgreSQL. Default: `postgresql+pg8000://ews_user:ews_pass@localhost:5432/ews_db`. Ganti `localhost` dengan IP VM jika diakses dari komputer lain |
 | `SCRAPE_INTERVAL_MINUTES` | Interval scraping dalam menit (mis. `5` = tiap 5 menit) |
 | `SCRAPER_MAX_WORKERS` | Jumlah feed yang diunduh secara paralel. Default `8` |
 | `RSS_FEEDS` | **Tambahan** URL RSS, dipisahkan koma. Sumber default sudah aktif otomatis dari `config.py`, jadi variabel ini boleh dikosongkan |
@@ -246,8 +250,8 @@ PGPASSWORD=ews_pass psql -h localhost -U ews_user -d ews_db -c "DELETE FROM aler
 ### Membaca log
 
 ```bash
-docker compose logs -f app     # dengan Docker
-uvicorn api.main:app --reload  # tanpa Docker: lihat output konsol
+uvicorn api.main:app --reload                    # lihat output konsol
+sudo journalctl -u ews-backend.service -f        # kalau pakai systemd
 ```
 
 ### Melihat isi database langsung
@@ -263,7 +267,7 @@ PGPASSWORD=ews_pass psql -h localhost -U ews_user -d ews_db
 | Masalah | Kemungkinan penyebab & solusi |
 |---|---|
 | Dashboard tampil "Belum ada alert." | Belum ada artikel yang lolos threshold. Cek `Total artikel` di ringkasan — jika 0, berarti scraper gagal (lihat log). Jika angka artikel besar tapi alert 0, artinya tidak ada berita yang memenuhi konteks + skor. Coba longgarkan `CONTEXT_KEYWORDS` / turunkan `ALERT_THRESHOLD`, lalu evaluasi ulang data lama |
-| `Total artikel` tetap 0 | RSS feed tidak bisa diakses, atau `RSS_FEEDS` kosong di `.env`. Cek log: `docker compose logs app` |
+| `Total artikel` tetap 0 | RSS feed tidak bisa diakses, atau `RSS_FEEDS` kosong di `.env`. Cek output konsol / `journalctl -u ews-backend.service` |
 | Filter level tidak berubah | Pastikan URL dashboard membawa `?level=...`. Klik **Hapus filter** untuk kembali ke semua level, atau cek `LEVEL_RANGES` di `config.py` |
 | Setelah ubah kata kunci hasilnya tidak berubah | Perubahan hanya berlaku untuk artikel baru. Evaluasi ulang data lama (lihat bagian Pemeliharaan) |
 | Error koneksi database | Pastikan PostgreSQL berjalan dan `DATABASE_URL` di `.env` benar |
@@ -273,8 +277,10 @@ PGPASSWORD=ews_pass psql -h localhost -U ews_user -d ews_db
 ## 8. Penyerahan ke Tim Ops (TKJ)
 
 Untuk produksi / serah terima:
-1. Jalankan `docker compose up -d --build`.
-2. Pastikan port **8000** terbuka di firewall (mis. `ufw allow 8000`).
-3. Jika perlu domain/HTTPS, pasang reverse proxy (mis. nginx) di depan port 8000.
-4. Pastikan service berjalan otomatis saat server boot (`restart: unless-stopped` sudah diatur di `docker-compose.yml`).
-5. Pantau resource dengan `docker stats` atau Portainer.
+1. Pasang & siapkan PostgreSQL di VM (bagian 2A), lalu buat `.env` dari `.env.example`.
+2. Jalankan aplikasi dengan `uvicorn api.main:app --host 0.0.0.0 --port 8000`.
+3. Pastikan port **8000** terbuka di firewall (mis. `sudo ufw allow 8000/tcp`).
+4. Jika perlu domain/HTTPS, pasang reverse proxy (mis. nginx) di depan port 8000.
+5. Buat systemd service agar aplikasi otomatis jalan saat VM boot; backup database
+   berkala dengan `pg_dump -U ews_user ews_db > backup.sql`.
+6. Pantau resource VM dengan `top`/`htop`; tidak perlu Docker/Portainer.

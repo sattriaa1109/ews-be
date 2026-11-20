@@ -4,9 +4,12 @@ from dotenv import load_dotenv  # Import load_dotenv untuk memuat isi file .env 
 
 load_dotenv()  # Jalankan load_dotenv agar semua variabel di file .env tersedia untuk program
 
-# URL koneksi database; default SQLite lokal supaya aplikasi jalan tanpa Docker/PostgreSQL.
-# Kalau mau pakai PostgreSQL, set DATABASE_URL di .env secara eksplisit.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ews_local.db")
+# URL koneksi database: PostgreSQL langsung di host/VM (tanpa Docker).
+# Pakai driver pg8000 (pure Python) supaya tidak butuh pg_config/psycopg2.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+pg8000://ews_user:ews_pass@localhost:5432/ews_db",
+)
 
 # Interval scrape otomatis dalam menit; default 15, lalu diubah tipe datanya jadi integer
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "15"))

@@ -21,17 +21,34 @@ ews-backend/
 ├── config.py           # semua konfigurasi & keyword library
 ├── database.py         # setup DB session
 ├── scheduler.py        # APScheduler job periodik
-├── ews_local.db        # database SQLite lokal (default)
-├── docker/             # Dockerfile (opsional, legacy)
-└── docker-compose.yml  # opsional, legacy
+├── docker/             # legacy, tidak dipakai
+└── docker-compose.yml  # legacy, tidak dipakai
 ```
 
-## Cara Menjalankan (lokal, tanpa Docker — disarankan)
+## Cara Menjalankan (PostgreSQL langsung, tanpa Docker)
 
-Default memakai SQLite (`ews_local.db`), jadi tidak perlu Docker atau PostgreSQL.
-Jalankan perintah dari **folder root proyek** (path database di `.env` bersifat relatif).
+PostgreSQL dipasang langsung di host/VM. Driver `pg8000` sudah ada di `requirements.txt`
+(pure Python, tidak butuh `pg_config`/`psycopg2`).
 
-**Linux (BE):**
+### 1. Siapkan PostgreSQL di server/VM
+
+```bash
+# Debian/Ubuntu
+sudo apt install -y postgresql
+sudo systemctl enable --now postgresql
+
+# Buat user & database
+sudo -u postgres psql -c "CREATE USER ews_user WITH PASSWORD 'ews_pass';"
+sudo -u postgres createdb -O ews_user ews_db
+```
+
+Kalau koneksi localhost ditolak dengan `Ident authentication failed`, ubah baris `host`
+di `pg_hba.conf` menjadi `scram-sha-256` (atau `md5`) untuk `127.0.0.1/32`, lalu
+`sudo systemctl reload postgresql`.
+
+### 2. Jalankan aplikasi
+
+**Linux (BE / VM Linux):**
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -51,27 +68,22 @@ uvicorn api.main:app --reload
 ```
 Jika aktivasi venv ditolak: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
 
-**Server admin (VM):** pakai salah satu perintah di atas sesuai OS VM. Untuk akses LAN,
-ganti `--reload` dengan `--host 0.0.0.0 --port 8000`, lalu buka port 8000 di firewall VM.
-File `.env` dan `ews_local.db` tidak ikut ter-commit — harus dibuat/disalin manual ke VM.
+**Server admin (VM):** untuk akses LAN, ganti `--reload` dengan
+`--host 0.0.0.0 --port 8000`, lalu buka port **8000** di firewall VM.
+File `.env` tidak ikut ter-commit — harus dibuat manual di VM.
+Data tersimpan di PostgreSQL (bukan file DB), jadi backup pakai `pg_dump`.
 
-Buka dashboard di `http://localhost:8000`.
+**Windows yang tidak install Postgres lokal:** cukup arahkan `DATABASE_URL` di `.env`
+ke IP VM, mis. `postgresql+pg8000://ews_user:ews_pass@<IP-VM>:5432/ews_db`,
+dan buka port **5432** di firewall VM.
 
 Akun dummy: `admin`/`admin123`, `staff`/`staff123`, `operator1`/`operator123`,
 `operator2`/`operator123`, `analis1`/`analis123`, `viewer1`/`viewer123`.
 
-## Catatan Docker (opsional / legacy)
+## Catatan Docker (legacy, jangan dipakai)
 
-`docker-compose.yml` dan `docker/` masih disimpan kalau suatu hari ingin memakai
-PostgreSQL, tapi bukan lagi jalur utama. Cara lama:
-
-```
-docker compose up -d --build
-```
-
-Itu menjalankan `ews_app` (port 8000) dan `ews_db` (PostgreSQL port 5432).
-Kalau memakai jalur ini, set `DATABASE_URL` di `.env` ke URL PostgreSQL dan jalankan
-`python seed_user_dummy.py` di dalam container app untuk mengisi user dummy.
+`docker-compose.yml` dan `docker/` masih ada di repo sebagai arsip, tapi jalur utama
+sekarang PostgreSQL langsung di host/VM. Tidak perlu `docker compose up`.
 
 ## Sumber Berita
 
