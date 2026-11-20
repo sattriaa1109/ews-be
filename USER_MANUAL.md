@@ -57,29 +57,36 @@ Dashboard / API ← baca dari Database (bisa difilter per level)
 
 ### A. Menjalankan lokal tanpa Docker (cara yang disarankan)
 
-Persyaratan: Linux dengan Python 3.10+. Tidak perlu Docker maupun PostgreSQL.
+Persyaratan: Python 3.10+ (Linux atau Windows). Tidak perlu Docker maupun PostgreSQL.
+Jalankan semua perintah dari folder root proyek.
 
-1. Siapkan virtual environment & dependency:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-2. Siapkan konfigurasi (default sudah SQLite):
-   ```bash
-   cp -n .env.example .env
-   ```
-3. Isi data dummy untuk testing (opsional):
-   ```bash
-   python seed_dummy.py
-   ```
-4. Jalankan server:
-   ```bash
-   uvicorn api.main:app --reload
-   ```
-5. Buka dashboard di `http://localhost:8000`.
+**Linux:**
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp -n .env.example .env
+python seed_dummy.py          # opsional
+uvicorn api.main:app --reload
+```
 
-Data tersimpan di `ews_local.db` di folder proyek. Untuk backup, cukup salin file itu.
+**Windows (PowerShell):**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+python seed_dummy.py
+uvicorn api.main:app --reload
+```
+Jika aktivasi venv ditolak, jalankan dulu
+`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
+
+**VM server/admin:** ikuti perintah sesuai OS VM. Untuk diakses dari komputer lain,
+pakai `uvicorn api.main:app --host 0.0.0.0 --port 8000` dan buka port 8000 di firewall VM.
+`.env` dan `ews_local.db` tidak ikut ter-commit, jadi harus dibuat/disalin manual ke VM.
+
+Data tersimpan di `ews_local.db` di folder proyek (file SQLite bisa dipindah antar OS).
+Untuk backup, cukup salin file itu.
 
 Akun dummy yang tersedia: `admin`/`admin123`, `staff`/`staff123`,
 `operator1`/`operator123`, `operator2`/`operator123`, `analis1`/`analis123`,

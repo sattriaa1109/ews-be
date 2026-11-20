@@ -29,22 +29,31 @@ ews-backend/
 ## Cara Menjalankan (lokal, tanpa Docker — disarankan)
 
 Default memakai SQLite (`ews_local.db`), jadi tidak perlu Docker atau PostgreSQL.
+Jalankan perintah dari **folder root proyek** (path database di `.env` bersifat relatif).
 
+**Linux (BE):**
 ```bash
-# 1. Siapkan virtual environment & dependency
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# 2. Konfigurasi (sudah default SQLite; salin jika belum ada .env)
 cp -n .env.example .env
-
-# 3. Isi data dummy (opsional, untuk testing login & dashboard)
-python seed_dummy.py
-
-# 4. Jalankan server
+python seed_dummy.py          # opsional, data dummy
 uvicorn api.main:app --reload
 ```
+
+**Windows (PowerShell):**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+python seed_dummy.py
+uvicorn api.main:app --reload
+```
+Jika aktivasi venv ditolak: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
+
+**Server admin (VM):** pakai salah satu perintah di atas sesuai OS VM. Untuk akses LAN,
+ganti `--reload` dengan `--host 0.0.0.0 --port 8000`, lalu buka port 8000 di firewall VM.
+File `.env` dan `ews_local.db` tidak ikut ter-commit — harus dibuat/disalin manual ke VM.
 
 Buka dashboard di `http://localhost:8000`.
 
